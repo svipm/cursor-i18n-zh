@@ -10,16 +10,18 @@ Cursor Windows 桌面端中文汉化工具. 本项目先启用官方 VS Code 简
 
 1. 解压 zip.
 2. 双击 `scripts\gui.cmd`.
-3. 先点 `安全检查`.
-4. 确认检查通过后点 `一键安装`.
-5. 重新打开 Cursor.
+3. 阅读声明和风险提示.
+4. 完整输入 `我已仔细阅读上述规则并同意继续使用`.
+5. 选择 `一键安装` 或 `还原默认`.
+6. 重新打开 Cursor.
 
 也可以直接双击这些脚本:
 
 - `scripts\gui.cmd`: 打开图形界面.
-- `scripts\install.cmd`: 一键安装或更新汉化.
-- `scripts\restore.cmd`: 一键恢复原版.
-- `scripts\status.cmd`: 查看当前状态.
+- `scripts\cursor-i18n-helper.cmd`: 打开终端菜单.
+- `scripts\install.cmd`: 命令行一键安装或更新汉化.
+- `scripts\restore.cmd`: 命令行一键恢复原版.
+- `scripts\status.cmd`: 命令行查看当前状态.
 
 ## 环境要求
 
@@ -35,19 +37,21 @@ Cursor Windows 桌面端中文汉化工具. 本项目先启用官方 VS Code 简
 - `%ProgramFiles%\Cursor\resources\app`
 - `%ProgramFiles(x86)%\Cursor\resources\app`
 - `PATH` 中的 `cursor.cmd` 或 `Cursor.exe`
+- 正在运行的 `Cursor.exe` 进程路径
 - Windows 卸载注册表里的 Cursor 安装信息
 
 如果你的 Cursor 是特殊安装位置, 手动设置环境变量:
 
 ```powershell
 $env:CURSOR_APP_DIR = 'D:\Your\Cursor\resources\app'
-npm run status
+npm run locate
 ```
 
 ## 命令行使用
 
 ```powershell
 npm run status
+npm run locate
 npm run check
 npm run lang
 npm run apply
@@ -72,7 +76,7 @@ npm run restore
 
 ## 安全检查说明
 
-`npm run check` 或 GUI 的 `安全检查` 不会修改 Cursor. 它会执行这些检查:
+`npm run check` 不会修改 Cursor. 一键安装会先自动运行这项检查. 它会执行这些检查:
 
 - 校验 `dict/*.json` 能正常解析.
 - 校验词典译文不包含高风险字符, 例如 `<`, `>`, 引号, 反斜杠和模板占位符.
@@ -101,7 +105,7 @@ npm run restore
 
 仍需注意:
 
-- Cursor 升级后需要重新运行 `安全检查` 和 `一键安装`.
+- Cursor 升级后需要重新运行 `一键安装`.
 - 如果 Cursor 正在运行, 文件可能被占用, 请完全退出后重试.
 - 如果 Cursor 版本变化较大, 可能出现部分英文残留, 可运行 `npm run scan` 生成候选词条继续维护.
 
@@ -113,7 +117,9 @@ npm run restore
 - 自动运行 `npm run check` 校验词典和补丁语法.
 - 自动执行 `scripts/package.ps1`, 生成 `dist/cursor-i18n-zh-windows.zip`.
 - 每次构建都会上传 artifact.
-- 推送 `v*` 标签时会自动把 zip 附加到 GitHub Release.
+- 推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 附加到发行版.
+
+注意: 只有 push 不会生成发行版页面. 必须推送 `v*` 标签, GitHub Release 才会出现.
 
 发布新版本示例:
 

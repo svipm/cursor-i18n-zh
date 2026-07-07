@@ -8,6 +8,7 @@ const readline = require('node:readline');
 
 const ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
+const AGREEMENT_TEXT = '我已仔细阅读上述规则并同意继续使用';
 
 function pause() {
   return new Promise((resolve) => {
@@ -15,6 +16,16 @@ function pause() {
     rl.question('\n按 Enter 返回菜单...', () => {
       rl.close();
       resolve();
+    });
+  });
+}
+
+function ask(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(String(answer).trim());
     });
   });
 }
@@ -79,8 +90,44 @@ async function dispatch(action) {
     case 'scan':
       runNode(['scan']);
       break;
+    case 'locate':
+      runNode(['locate']);
+      break;
     default:
       throw new Error(`未知操作: ${action}`);
+  }
+}
+
+function printNotice() {
+  console.clear();
+  console.log('Cursor 汉化助手');
+  console.log('='.repeat(56));
+  console.log('使用声明和风险提示');
+  console.log('');
+  console.log('1. 本软件仅供学习, 研究和个人本地化测试使用.');
+  console.log('2. 本软件不是 Cursor 官方项目, 与 Cursor 官方无从属或授权关系.');
+  console.log('3. 使用本软件前, 请确认你有权在自己的电脑上修改本机软件文件.');
+  console.log('4. 安装汉化会修改本机 Cursor 安装目录中的前端资源文件.');
+  console.log('5. 首次安装会按 Cursor 版本自动备份原文件, 可通过菜单恢复默认.');
+  console.log('6. 安装和恢复会先尝试关闭 Cursor.exe, 请提前保存未完成工作.');
+  console.log('7. Cursor 升级后可能需要重新安装汉化, 也可能出现部分英文残留.');
+  console.log('8. 本软件不收集个人数据, 不上传文件, 不下载或执行远程脚本.');
+  console.log('9. 因使用本软件造成的兼容性问题, 文件损坏或其他风险, 由使用者自行承担.');
+  console.log('');
+  console.log('继续使用前, 必须完整输入以下文字:');
+  console.log(AGREEMENT_TEXT);
+  console.log('');
+}
+
+async function requireAgreement() {
+  while (true) {
+    printNotice();
+    const answer = await ask('请输入: ');
+    const lower = answer.toLowerCase();
+    if (answer === AGREEMENT_TEXT) return true;
+    if (lower === 'q' || lower === 'quit' || lower === 'exit') return false;
+    console.log('\n输入不正确, 请完整输入指定文字.');
+    await pause();
   }
 }
 
@@ -91,30 +138,22 @@ function printMenu() {
   console.log(`项目目录: ${ROOT}`);
   console.log(`Node: ${process.version}`);
   console.log('');
-  console.log('1. 查看状态');
-  console.log('2. 安全检查');
-  console.log('3. 一键安装或更新汉化');
-  console.log('4. 一键恢复原版');
-  console.log('5. 扫描残留英文候选');
+  console.log('1. 安装汉化');
+  console.log('2. 还原成默认');
   console.log('q. 退出');
   console.log('');
 }
 
 async function menu() {
   if (!fs.existsSync(CLI)) throw new Error(`找不到 CLI: ${CLI}`);
+  if (!(await requireAgreement())) return;
   while (true) {
     printMenu();
-    const choice = await new Promise((resolve) => {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      rl.question('请选择: ', (answer) => {
-        rl.close();
-        resolve(String(answer).trim().toLowerCase());
-      });
-    });
+    const choice = (await ask('请选择: ')).toLowerCase();
     if (choice === 'q' || choice === 'quit' || choice === 'exit') return;
 
     try {
-      const map = { 1: 'status', 2: 'check', 3: 'install', 4: 'restore', 5: 'scan' };
+      const map = { 1: 'install', 2: 'restore' };
       if (!map[choice]) throw new Error('请选择菜单中的编号.');
       await dispatch(map[choice]);
     } catch (e) {
@@ -126,7 +165,10 @@ async function menu() {
 
 async function main() {
   const arg = process.argv[2] && process.argv[2].replace(/^--/, '').toLowerCase();
-  if (arg) return dispatch(arg);
+  if (arg) {
+    if ((arg === 'install' || arg === 'restore') && !(await requireAgreement())) return;
+    return dispatch(arg);
+  }
   return menu();
 }
 

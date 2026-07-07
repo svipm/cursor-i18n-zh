@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 
-const { locateApp, readProduct } = require('./locate');
+const { locateApp, readProduct, resolveCandidates } = require('./locate');
 const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON, LANG_PACK_ID } = require('./config');
 const { loadDicts } = require('./dict');
 const { applyToText } = require('./engine');
@@ -164,6 +164,27 @@ function cmdStatus() {
   log(`官方中文语言包: ${hasPack ? '已安装' : '未安装 (npm run lang 可安装)'}`);
 }
 
+function cmdLocate() {
+  const verbose = process.argv.includes('--verbose');
+  const items = resolveCandidates();
+  if (!verbose) {
+    const usable = items.filter((item) => item.appDir);
+    if (!usable.length) throw new Error('未找到 Cursor 安装目录; 可用环境变量 CURSOR_APP_DIR 指定 resources/app 路径');
+    log(`Cursor 安装目录: ${usable[0].appDir}`);
+    const sources = [...new Set(usable.map((item) => item.source))].join(', ');
+    log(`识别来源: ${sources}`);
+    log('如需查看全部探测候选, 运行: npm run locate -- --verbose');
+    return;
+  }
+  let found = false;
+  for (const item of items) {
+    const state = item.appDir ? `可用 -> ${item.appDir}` : '不可用';
+    log(`${item.source}: ${item.value} (${state})`);
+    if (item.appDir) found = true;
+  }
+  if (!found) throw new Error('未找到 Cursor 安装目录; 可用环境变量 CURSOR_APP_DIR 指定 resources/app 路径');
+}
+
 function cmdScan() {
   const appDir = locateApp();
   const targets = existingTargets(appDir);
@@ -219,14 +240,15 @@ function cmdLang() {
   if (r.status !== 0) log('安装失败: 可在 Cursor 扩展面板搜索 "Chinese (Simplified)" 手动安装.');
 }
 
-const commands = { apply: cmdApply, restore: cmdRestore, status: cmdStatus, scan: cmdScan, lang: cmdLang, check: cmdCheck };
+const commands = { apply: cmdApply, restore: cmdRestore, status: cmdStatus, locate: cmdLocate, scan: cmdScan, lang: cmdLang, check: cmdCheck };
 const cmd = process.argv[2];
 
 if (!cmd || !commands[cmd]) {
-  log('用法: node src/cli.js <apply|restore|status|scan|lang|check>');
+  log('用法: node src/cli.js <apply|restore|status|locate|scan|lang|check>');
   log('  apply   打汉化补丁 (自动备份原文件, 可重复执行)');
   log('  restore 还原为原版文件');
   log('  status  查看安装/补丁/语言状态');
+  log('  locate  显示 Cursor 安装目录自动探测结果');
   log('  scan    提取候选字符串到 build/ (维护词典用)');
   log('  lang    locale 设为 zh-cn 并安装官方中文语言包 (VS Code 基础界面)');
   log('  check   校验词典与本机 Cursor 路径, 不修改 Cursor');

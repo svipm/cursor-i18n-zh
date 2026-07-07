@@ -15,13 +15,14 @@
     "apply": "node src/cli.js apply",
     "restore": "node src/cli.js restore",
     "status": "node src/cli.js status",
+    "locate": "node src/cli.js locate",
     "scan": "node src/cli.js scan",
     "lang": "node src/cli.js lang",
     "check": "node src/cli.js check",
     "helper": "node scripts/helper.js",
     "ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gui.ps1",
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
-    "test": "node --test"
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=18"
