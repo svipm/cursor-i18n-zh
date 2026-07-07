@@ -22,7 +22,7 @@
     "helper": "node scripts/helper.js",
     "ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gui.ps1",
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
-    "test": "node --test test/*.test.js"
+    "test": "node scripts/test.js"
   },
   "engines": {
     "node": ">=18"
