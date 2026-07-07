@@ -1,0 +1,9 @@
+{
+  "//": "主进程 (out/main.js): 托盘菜单与窗口菜单里的 Cursor 专有项. 'New Agent'/'Settings'/'Quit' 等已在其他词典覆盖.",
+
+  "Open Cursor": "打开 Cursor",
+  "Clear All Notifications": "清除所有通知",
+  "Recent Agents": "最近的智能体",
+  "No recent agents": "暂无最近的智能体",
+  "Loading agents...": "正在加载智能体..."
+}

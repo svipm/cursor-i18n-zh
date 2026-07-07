@@ -1,0 +1,22 @@
+{
+  "name": "cursor-i18n-zh",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cursor (Windows) 客户端界面汉化补丁工具: 词典驱动, 可应用可还原",
+  "type": "commonjs",
+  "bin": {
+    "cursor-i18n-zh": "src/cli.js"
+  },
+  "scripts": {
+    "apply": "node src/cli.js apply",
+    "restore": "node src/cli.js restore",
+    "status": "node src/cli.js status",
+    "scan": "node src/cli.js scan",
+    "lang": "node src/cli.js lang",
+    "check": "node src/cli.js check",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
