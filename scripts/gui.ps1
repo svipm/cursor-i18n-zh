@@ -71,9 +71,9 @@ function Run-CliAction([string]$Name, [string[]]$Args) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Cursor 汉化助手'
-$form.Size = New-Object System.Drawing.Size(860, 560)
+$form.Size = New-Object System.Drawing.Size(860, 640)
 $form.StartPosition = 'CenterScreen'
-$form.MinimumSize = New-Object System.Drawing.Size(760, 460)
+$form.MinimumSize = New-Object System.Drawing.Size(760, 540)
 
 $title = New-Object System.Windows.Forms.Label
 $title.Text = 'Cursor 汉化助手'
@@ -121,8 +121,28 @@ $agreeBox.Size = New-Object System.Drawing.Size(650, 26)
 $agreeBox.Anchor = 'Top,Left,Right'
 $form.Controls.Add($agreeBox)
 
+$languageBox = New-Object System.Windows.Forms.GroupBox
+$languageBox.Text = '汉化语言'
+$languageBox.Location = New-Object System.Drawing.Point(16, 312)
+$languageBox.Size = New-Object System.Drawing.Size(810, 50)
+$languageBox.Anchor = 'Top,Left,Right'
+$form.Controls.Add($languageBox)
+
+$zhCnRadio = New-Object System.Windows.Forms.RadioButton
+$zhCnRadio.Text = '简体中文'
+$zhCnRadio.Location = New-Object System.Drawing.Point(16, 20)
+$zhCnRadio.Size = New-Object System.Drawing.Size(110, 22)
+$zhCnRadio.Checked = $true
+$languageBox.Controls.Add($zhCnRadio)
+
+$zhTwRadio = New-Object System.Windows.Forms.RadioButton
+$zhTwRadio.Text = '繁體中文'
+$zhTwRadio.Location = New-Object System.Drawing.Point(140, 20)
+$zhTwRadio.Size = New-Object System.Drawing.Size(110, 22)
+$languageBox.Controls.Add($zhTwRadio)
+
 $panel = New-Object System.Windows.Forms.FlowLayoutPanel
-$panel.Location = New-Object System.Drawing.Point(16, 314)
+$panel.Location = New-Object System.Drawing.Point(16, 374)
 $panel.Size = New-Object System.Drawing.Size(810, 44)
 $panel.Anchor = 'Top,Left,Right'
 $form.Controls.Add($panel)
@@ -143,8 +163,8 @@ $installButton = New-Button '一键安装'
 $restoreButton = New-Button '还原默认'
 
 $log = New-Object System.Windows.Forms.TextBox
-$log.Location = New-Object System.Drawing.Point(16, 368)
-$log.Size = New-Object System.Drawing.Size(810, 136)
+$log.Location = New-Object System.Drawing.Point(16, 428)
+$log.Size = New-Object System.Drawing.Size(810, 156)
 $log.Anchor = 'Top,Bottom,Left,Right'
 $log.Multiline = $true
 $log.ScrollBars = 'Both'
@@ -159,13 +179,19 @@ function Test-Agreement {
   return $false
 }
 
+function Get-LocaleArg {
+  if ($zhTwRadio.Checked) { return 'zh-tw' }
+  return 'zh-cn'
+}
+
 $installButton.Add_Click({
   if (!(Test-Agreement)) { return }
   $answer = [System.Windows.Forms.MessageBox]::Show('即将关闭 Cursor, 安装官方中文语言包并应用汉化补丁. 是否继续?', '确认安装', 'YesNo', 'Question')
   if ($answer -ne 'Yes') { return }
   Run-Action '一键安装' {
     Stop-Cursor
-    foreach ($args in @(@('check'), @('lang'), @('apply'))) {
+    $locale = Get-LocaleArg
+    foreach ($args in @(@('check', '--locale', $locale), @('lang', '--locale', $locale), @('apply', '--locale', $locale))) {
       $result = Invoke-Cli $args
       Add-Log $result.Output.TrimEnd()
       if ($result.Code -ne 0) { throw "命令失败: node src/cli.js $($args -join ' ')" }
@@ -185,5 +211,5 @@ $restoreButton.Add_Click({
 })
 
 Add-Log "项目目录: $Root"
-Add-Log '点击 查看状态 或 安全检查 开始.'
+Add-Log '选择语言, 输入同意文字后点击一键安装或还原默认.'
 [void]$form.ShowDialog()

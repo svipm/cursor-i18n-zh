@@ -33,10 +33,7 @@ const HTML_ATTRS = [
 // nls 扫描时视为 Cursor 专有的模块 (VS Code 核心模块交给官方语言包).
 const CURSOR_NLS_RE = /aiMarkdown|aiSettings|aiContext|aicontext|aiReview|aiFeatures|aiBlame|aiCodeTracking|composer|cursor[A-Z]|\.cursor\.|\.cursor$|bugbot|Bugbot|memories|backgroundAgent|browserAutomation|anysphere|glass|chimes|contextPicker|shadowWorkspace|cppSettings|cmdk|promptBar/;
 
-// 官方简体中文语言包 (覆盖 VS Code 基础界面).
-const LANG_PACK_ID = 'ms-ceintl.vscode-language-pack-zh-hans';
-
 module.exports = {
   CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON,
-  PROPS, HTML_ATTRS, CURSOR_NLS_RE, LANG_PACK_ID,
+  PROPS, HTML_ATTRS, CURSOR_NLS_RE,
 };

@@ -1,7 +1,7 @@
 {
   "name": "cursor-i18n-zh",
-  "version": "0.1.0",
-  "description": "Cursor (Windows) 客户端界面汉化补丁工具: 词典驱动, 可应用可还原",
+  "version": "0.2.0",
+  "description": "Cursor Windows 桌面端中文汉化补丁工具: 支持简体, 繁体, 一键安装和恢复",
   "type": "commonjs",
   "license": "MIT",
   "repository": {

@@ -13,10 +13,13 @@ const VALID_CTX = new Set(['lit', 'prop', 'html-text', 'html-attr']);
 //   nls.json          -> { "模块路径#key": "译文" }, 走 nls.messages.json 索引替换
 //   其余 *.json (按文件名排序) -> { "原文": "译文" | { "zh": "...", "ctx": [...] } }
 // 以 "//" 开头的键视为注释, 忽略.
-function loadDicts(dictDir) {
+function loadDicts(dictDir, options = {}) {
   const code = new Map();
   const warnings = [];
   let nls = {};
+  const profile = options.profile || null;
+  const converter = options.converter || (profile && profile.converter) || null;
+  const convert = (text) => (converter ? converter(text) : text);
 
   const files = fs.existsSync(dictDir)
     ? fs.readdirSync(dictDir).filter((f) => f.endsWith('.json')).sort()
@@ -35,7 +38,7 @@ function loadDicts(dictDir) {
       for (const [key, zh] of Object.entries(data)) {
         if (key.startsWith('//')) continue;
         if (typeof zh !== 'string' || !zh) { warnings.push(`nls.json: ${key} 译文无效, 跳过`); continue; }
-        nls[key] = zh;
+        nls[key] = convert(zh);
       }
       continue;
     }
@@ -49,7 +52,8 @@ function loadDicts(dictDir) {
       if (FORBIDDEN_EN.test(en)) {
         warnings.push(`${f}: "${en}" 原文含不支持字符 (" \` \\ 或 \${), 跳过`); continue;
       }
-      if (FORBIDDEN_ZH.test(item.zh)) {
+      const zh = convert(item.zh);
+      if (FORBIDDEN_ZH.test(zh)) {
         warnings.push(`${f}: "${en}" 译文含禁止字符 (<> " ' \` \\ 或 \${), 跳过`); continue;
       }
       if (item.ctx) {
@@ -57,11 +61,11 @@ function loadDicts(dictDir) {
         if (bad.length) { warnings.push(`${f}: "${en}" ctx 非法: ${bad.join(',')}, 跳过`); continue; }
       }
       if (code.has(en)) warnings.push(`"${en}" 在多个词典中重复, 以 ${f} 为准`);
-      code.set(en, { zh: item.zh, ctx: item.ctx || null, from: f });
+      code.set(en, { zh, ctx: item.ctx || null, from: f });
     }
   }
 
-  return { code, nls, warnings, files };
+  return { code, nls, warnings, files, profile };
 }
 
 module.exports = { loadDicts, FORBIDDEN_ZH };

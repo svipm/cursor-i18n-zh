@@ -7,7 +7,7 @@ const path = require('path');
 const cp = require('child_process');
 
 const { locateApp, readProduct, resolveCandidates } = require('./locate');
-const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON, LANG_PACK_ID } = require('./config');
+const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON } = require('./config');
 const { loadDicts } = require('./dict');
 const { applyToText } = require('./engine');
 const { patchNls } = require('./nls');
@@ -15,12 +15,28 @@ const { backupDir, ensureBackup, backupFilePath, listBackupFiles } = require('./
 const { sha256b64, ensureDir } = require('./util');
 const { scanCode, scanNls } = require('./scan');
 const { setLocaleInArgv } = require('./argv');
+const { DEFAULT_LOCALE, getLanguageProfile } = require('./locale');
 
 const ROOT = path.resolve(__dirname, '..');
 const DICT_DIR = path.join(ROOT, 'dict');
 const BUILD_DIR = path.join(ROOT, 'build');
 
 function log(msg) { console.log(msg); }
+
+function optionValue(names, fallback = null) {
+  for (let i = 2; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    for (const name of names) {
+      if (arg === name) return process.argv[i + 1] || fallback;
+      if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+    }
+  }
+  return fallback;
+}
+
+function selectedProfile() {
+  return getLanguageProfile(optionValue(['--locale', '--lang'], DEFAULT_LOCALE));
+}
 
 function existingTargets(appDir) {
   return CODE_TARGETS.filter((rel) => fs.existsSync(path.join(appDir, rel)));
@@ -70,11 +86,13 @@ function clearClpCache() {
 }
 
 function cmdApply() {
+  const profile = selectedProfile();
   const appDir = locateApp();
   const product = readProduct(appDir);
   log(`Cursor ${product.version} (${(product.commit || '').slice(0, 8)}) @ ${appDir}`);
+  log(`目标语言: ${profile.name} (${profile.locale})`);
 
-  const dicts = loadDicts(DICT_DIR);
+  const dicts = loadDicts(DICT_DIR, { profile });
   for (const w of dicts.warnings) log(`[词典警告] ${w}`);
   if (!dicts.code.size && !Object.keys(dicts.nls).length) {
     throw new Error('词典为空: dict/ 下没有可用条目');
@@ -87,7 +105,7 @@ function cmdApply() {
   for (const w of warns) log(`[备份警告] ${w}`);
   log(`备份就绪: ${path.relative(ROOT, bdir)}`);
 
-  const report = { version: product.version, appliedAt: new Date().toISOString(), files: {}, misses: [] };
+  const report = { version: product.version, locale: profile.locale, language: profile.name, appliedAt: new Date().toISOString(), files: {}, misses: [] };
   const hit = new Set();
 
   for (const rel of targets) {
@@ -101,10 +119,14 @@ function cmdApply() {
   }
 
   {
-    const { count, unknown, langPackCount, langPackDir } = patchNls(appDir, backupFilePath(bdir, NLS_MESSAGES), dicts.nls);
+    const { count, unknown, langPackCount, langPackDir, langPackId, usedFallbackLanguagePack } = patchNls(appDir, backupFilePath(bdir, NLS_MESSAGES), dicts.nls, { profile });
     report.files[NLS_MESSAGES] = { languagePack: langPackCount, cursorDict: count };
-    if (langPackDir) log(`已导入官方中文语言包: ${path.basename(langPackDir)} (替换 ${langPackCount} 条)`);
-    else log('[nls 警告] 未找到官方中文语言包, VS Code 基础界面不会由 nls 补丁覆盖');
+    if (langPackDir) {
+      const fallback = usedFallbackLanguagePack ? ', fallback 后转换' : '';
+      log(`已导入官方中文语言包: ${path.basename(langPackDir)} (${langPackId}${fallback}, 替换 ${langPackCount} 条)`);
+    } else {
+      log(`[nls 警告] 未找到官方中文语言包 ${profile.languagePackId}, VS Code 基础界面不会由 nls 补丁覆盖`);
+    }
     log(`已打补丁: ${NLS_MESSAGES} (Cursor 专有替换 ${count} 条)`);
     for (const k of unknown) log(`[nls 警告] 找不到 key: ${k}`);
   }
@@ -135,13 +157,14 @@ function cmdRestore() {
 }
 
 function cmdStatus() {
+  const profile = selectedProfile();
   const appDir = locateApp();
   const product = readProduct(appDir);
   log(`Cursor: ${product.version} (${(product.commit || '').slice(0, 8)})`);
   log(`安装目录: ${appDir}`);
   const bdir = backupDir(ROOT, product.version);
   log(`备份: ${fs.existsSync(bdir) ? path.relative(ROOT, bdir) : '无'}`);
-  const dicts = loadDicts(DICT_DIR);
+  const dicts = loadDicts(DICT_DIR, { profile });
   log(`词典: 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
   for (const rel of existingTargets(appDir)) {
     const key = rel.replace(/^out\//, '');
@@ -160,8 +183,9 @@ function cmdStatus() {
   log(`显示语言 locale: ${locale}`);
   const extDir = path.join(os.homedir(), '.cursor', 'extensions');
   const hasPack = fs.existsSync(extDir)
-    && fs.readdirSync(extDir).some((d) => d.toLowerCase().startsWith(LANG_PACK_ID));
-  log(`官方中文语言包: ${hasPack ? '已安装' : '未安装 (npm run lang 可安装)'}`);
+    && fs.readdirSync(extDir).some((d) => d.toLowerCase().startsWith(`${profile.languagePackId}-`));
+  log(`目标语言: ${profile.name} (${profile.locale})`);
+  log(`官方中文语言包: ${profile.languagePackId} ${hasPack ? '已安装' : '未安装 (npm run lang 可安装)'}`);
 }
 
 function cmdLocate() {
@@ -195,12 +219,13 @@ function cmdScan() {
 }
 
 function cmdCheck() {
-  const dicts = loadDicts(DICT_DIR);
+  const profile = selectedProfile();
+  const dicts = loadDicts(DICT_DIR, { profile });
   for (const w of dicts.warnings) log(`[词典警告] ${w}`);
   if (!dicts.code.size && !Object.keys(dicts.nls).length) {
     throw new Error('词典为空: dict/ 下没有可用条目');
   }
-  log(`词典校验通过: 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
+  log(`词典校验通过: ${profile.name} (${profile.locale}), 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
 
   try {
     const appDir = locateApp();
@@ -219,39 +244,41 @@ function cmdCheck() {
 }
 
 function cmdLang() {
+  const profile = selectedProfile();
   const argvPath = path.join(os.homedir(), '.cursor', 'argv.json');
   let raw = fs.existsSync(argvPath) ? fs.readFileSync(argvPath, 'utf8') : '{\n}';
-  raw = setLocaleInArgv(raw, 'zh-cn');
+  raw = setLocaleInArgv(raw, profile.locale);
   JSON.parse(raw);
   ensureDir(path.dirname(argvPath));
   fs.writeFileSync(argvPath, raw);
-  log(`已设置 locale = zh-cn (${argvPath})`);
+  log(`已设置 locale = ${profile.locale} (${argvPath})`);
 
   const appDir = locateApp();
   const cli = path.join(appDir, 'bin', process.platform === 'win32' ? 'cursor.cmd' : 'cursor');
   if (!fs.existsSync(cli)) {
-    log(`未找到 CLI (${cli}), 请在 Cursor 扩展面板手动安装: ${LANG_PACK_ID}`);
+    log(`未找到 CLI (${cli}), 请在 Cursor 扩展面板手动安装: ${profile.languagePackId}`);
     return;
   }
-  log(`正在安装官方中文语言包 ${LANG_PACK_ID} (需要网络) ...`);
-  const r = cp.spawnSync(`"${cli}"`, ['--install-extension', LANG_PACK_ID], { encoding: 'utf8', shell: true });
+  log(`正在安装官方中文语言包 ${profile.languagePackId} (需要网络) ...`);
+  const r = cp.spawnSync(`"${cli}"`, ['--install-extension', profile.languagePackId], { encoding: 'utf8', shell: true });
   const out = ((r.stdout || '') + (r.stderr || '')).trim();
   if (out) log(out);
-  if (r.status !== 0) log('安装失败: 可在 Cursor 扩展面板搜索 "Chinese (Simplified)" 手动安装.');
+  if (r.status !== 0) log(`安装失败: 可在 Cursor 扩展面板手动安装 ${profile.languagePackId}.`);
 }
 
 const commands = { apply: cmdApply, restore: cmdRestore, status: cmdStatus, locate: cmdLocate, scan: cmdScan, lang: cmdLang, check: cmdCheck };
 const cmd = process.argv[2];
 
 if (!cmd || !commands[cmd]) {
-  log('用法: node src/cli.js <apply|restore|status|locate|scan|lang|check>');
+  log('用法: node src/cli.js <apply|restore|status|locate|scan|lang|check> [--locale zh-cn|zh-tw]');
   log('  apply   打汉化补丁 (自动备份原文件, 可重复执行)');
   log('  restore 还原为原版文件');
   log('  status  查看安装/补丁/语言状态');
   log('  locate  显示 Cursor 安装目录自动探测结果');
   log('  scan    提取候选字符串到 build/ (维护词典用)');
-  log('  lang    locale 设为 zh-cn 并安装官方中文语言包 (VS Code 基础界面)');
+  log('  lang    设置 locale 并安装对应官方中文语言包 (VS Code 基础界面)');
   log('  check   校验词典与本机 Cursor 路径, 不修改 Cursor');
+  log('  --locale zh-cn|zh-tw  选择简体中文或繁體中文, 默认 zh-cn');
   process.exit(cmd ? 1 : 0);
 }
 

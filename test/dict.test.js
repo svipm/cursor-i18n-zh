@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { loadDicts } = require('../src/dict');
+const { toTraditional } = require('../src/locale');
 
 test('loads code and nls dictionaries and reports invalid entries', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-dict-'));
@@ -25,5 +26,20 @@ test('loads code and nls dictionaries and reports invalid entries', () => {
   assert.equal(dicts.code.get('New Agent').zh, '新建智能体');
   assert.deepEqual(dicts.nls, { 'module#key': '译文' });
   assert.equal(dicts.warnings.length, 2);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('applies converter to code and nls dictionaries', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-dict-'));
+  fs.writeFileSync(path.join(dir, '00.json'), JSON.stringify({
+    'Settings': '设置',
+  }));
+  fs.writeFileSync(path.join(dir, 'nls.json'), JSON.stringify({
+    'module#file': '文件',
+  }));
+
+  const dicts = loadDicts(dir, { converter: toTraditional });
+  assert.equal(dicts.code.get('Settings').zh, '設定');
+  assert.deepEqual(dicts.nls, { 'module#file': '檔案' });
   fs.rmSync(dir, { recursive: true, force: true });
 });

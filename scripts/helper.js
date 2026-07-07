@@ -49,6 +49,24 @@ function runNode(args) {
   if (r.status !== 0) throw new Error(`命令失败: node src/cli.js ${args.join(' ')}`);
 }
 
+async function selectLocale() {
+  while (true) {
+    console.clear();
+    console.log('选择汉化语言');
+    console.log('='.repeat(32));
+    console.log('1. 简体中文');
+    console.log('2. 繁體中文');
+    console.log('q. 返回');
+    console.log('');
+    const choice = (await ask('请选择: ')).toLowerCase();
+    if (choice === '1') return 'zh-cn';
+    if (choice === '2') return 'zh-tw';
+    if (choice === 'q' || choice === 'quit' || choice === 'exit') return null;
+    console.log('\n请选择菜单中的编号.');
+    await pause();
+  }
+}
+
 function stopCursor() {
   if (process.platform !== 'win32') return;
   cp.spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/F', '/T'], {
@@ -58,11 +76,13 @@ function stopCursor() {
 }
 
 async function install() {
+  const locale = await selectLocale();
+  if (!locale) return;
   if (!(await confirm('即将关闭 Cursor 并应用汉化补丁.'))) return;
   stopCursor();
-  runNode(['check']);
-  runNode(['lang']);
-  runNode(['apply']);
+  runNode(['check', '--locale', locale]);
+  runNode(['lang', '--locale', locale]);
+  runNode(['apply', '--locale', locale]);
   console.log('\n完成. 重新打开 Cursor 后生效.');
 }
 
