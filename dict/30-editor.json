@@ -230,5 +230,15 @@
   "Duplicate Editor Group Left": "向左复制编辑器组",
   "Duplicate Editor Group Right": "向右复制编辑器组",
   "Duplicate Editor Group Up": "向上复制编辑器组",
-  "Duplicate Selection": "复制选区"
+  "Duplicate Selection": "复制选区",
+  "Enable absolute positioning": "启用绝对定位",
+  "Enable All Breakpoints": "启用所有断点",
+  "Failed to apply notebook format code action on save": "保存时应用 Notebook 格式化代码操作失败",
+  "Failed to convert indentation to spaces for notebook cells.": "将 Notebook 单元格缩进转换为空格失败。",
+  "Failed to create code editor:": "创建代码编辑器失败:",
+  "Failed to create preview editor:": "创建预览编辑器失败:",
+  "Failed to read file contents for linter errors": "读取文件内容以获取 Linter 错误失败",
+  "Failed to remove keybinding:": "移除键绑定失败:",
+  "Failed to reveal export directory:": "显示导出目录失败:",
+  "Failed to reveal file in explorer:": "在资源管理器中显示文件失败:"
 }
