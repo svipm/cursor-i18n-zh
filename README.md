@@ -39,7 +39,7 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 
 1. 下载 `cursor-i18n-zh-windows.zip`.
 2. 解压到任意目录.
-3. 双击 `scripts\gui.cmd` 打开图形界面, 或双击 `scripts\cursor-i18n-helper.cmd` 打开终端菜单.
+3. 双击根目录的 `Cursor汉化助手.cmd` 打开终端菜单.
 4. 阅读声明, 完整输入同意文字.
 5. 选择 `简体中文` 或 `繁體中文`.
 6. 点击或选择 `一键安装`.
@@ -47,18 +47,37 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 
 恢复原版:
 
-1. 打开 `scripts\gui.cmd` 或 `scripts\cursor-i18n-helper.cmd`.
+1. 双击根目录的 `还原默认.cmd`, 或打开 `Cursor汉化助手.cmd` 后选择 `2. 还原成默认`.
 2. 阅读声明, 完整输入同意文字.
-3. 点击或选择 `还原默认`.
+3. 确认恢复.
 4. 重新打开 Cursor.
 
-## 脚本入口
+## 根目录入口
+
+发行版 zip 解压后, 根目录会直接提供这些可双击文件:
+
+- `Cursor汉化助手.cmd`: 推荐入口. 打开终端菜单, 先展示声明, 再显示 `1. 安装汉化`, `2. 还原成默认`.
+- `Cursor汉化助手-图形界面.cmd`: 打开图形界面, 支持语言选择, 一键安装, 一键恢复.
+- `一键安装汉化.cmd`: 直接进入安装流程, 仍会先展示声明并要求输入同意文字.
+- `还原默认.cmd`: 直接进入恢复流程, 仍会先展示声明并要求输入同意文字.
+
+`scripts` 目录保留为开发和备用入口:
 
 - `scripts\gui.cmd`: 图形界面, 支持语言选择, 一键安装, 一键恢复.
 - `scripts\cursor-i18n-helper.cmd`: 终端菜单, 先展示声明, 再显示 `1. 安装汉化`, `2. 还原成默认`.
 - `scripts\install.cmd`: 终端安装入口, 会进入声明和语言选择流程.
 - `scripts\restore.cmd`: 终端恢复入口, 会进入声明流程.
 - `scripts\status.cmd`: 查看当前 Cursor 路径, 备份, 文件修改状态和语言包状态.
+
+## 为什么不是单个 exe
+
+当前发行版是一个 zip, 解压后用根目录 `.cmd` 作为入口. 项目没有封装成不可审计的单个 exe, 原因是:
+
+- 词典, 源码和脚本保留在包内, 用户可以直接检查会修改哪些内容.
+- `README.md`, `dict`, `src`, `scripts` 都随包发布, 安全边界更透明.
+- 备份和恢复逻辑依赖这些可审计脚本, 出问题时更容易定位和修复.
+
+如果只想给普通用户一个最简单入口, 让对方双击根目录的 `Cursor汉化助手.cmd` 即可.
 
 ## 命令行
 
@@ -202,8 +221,8 @@ npm run check -- --locale zh-tw
 推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 上传到发行版:
 
 ```powershell
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin v0.2.0
+git tag -a v0.2.1 -m "v0.2.1"
+git push origin v0.2.1
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.

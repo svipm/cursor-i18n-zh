@@ -31,5 +31,9 @@ foreach ($item in $include) {
   }
 }
 
+Get-ChildItem -LiteralPath $Root -Filter '*.cmd' -File | ForEach-Object {
+  Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $Stage $_.Name)
+}
+
 Compress-Archive -Path (Join-Path $Stage '*') -DestinationPath $Zip -Force
 Write-Host "Package: $Zip"
