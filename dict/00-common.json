@@ -1516,5 +1516,22 @@
   "Failed to request notification permission": "请求通知权限失败",
   "Failed to resolve path:": "解析路径失败:",
   "Failed to restore workspace files": "恢复工作区文件失败",
-  "Failed to save changes.": "保存更改失败。"
+  "Failed to save changes.": "保存更改失败。",
+  "Fetch this URL": "抓取此 URL",
+  "Fetch this URL once": "抓取此 URL 一次",
+  "Fetch URL?": "抓取 URL？",
+  "Fetching latest value timed out": "获取最新值超时",
+  "Fetching URL...": "正在抓取 URL...",
+  "File already exists, writeFile": "文件已存在, 写入文件",
+  "File name": "文件名",
+  "File not found": "未找到文件",
+  "File outside workspace boundaries": "文件位于工作区边界外",
+  "File seems to be binary and cannot be opened as text": "文件似乎是二进制文件, 无法作为文本打开",
+  "Filter by source": "按来源筛选",
+  "Finish Activate": "完成激活",
+  "Finished Deep Search": "深度搜索已完成",
+  "Finished sub-agent": "子智能体已完成",
+  "Fix Permissions": "修复权限",
+  "Flip Layout": "翻转布局",
+  "Global Storage Home": "全局存储主页"
 }

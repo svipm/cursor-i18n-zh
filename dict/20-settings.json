@@ -955,5 +955,11 @@
   "Failed to refresh marketplace.": "刷新市场失败。",
   "Failed to remove cloud MCP server.": "移除云端 MCP 服务器失败。",
   "Failed to remove URL from trusted domains:": "从可信域名中移除 URL 失败:",
-  "Failed to request limit increase:": "请求提高限制失败:"
+  "Failed to request limit increase:": "请求提高限制失败:",
+  "File Icon Theme": "文件图标主题",
+  "Files matching .cursorignore patterns are always blocked for security": "出于安全原因, 匹配 .cursorignore 模式的文件始终会被阻止",
+  "Files matching globalignore patterns are always blocked for security": "出于安全原因, 匹配 globalignore 模式的文件始终会被阻止",
+  "Files to exclude from indexing in addition to .gitignore.": "除 .gitignore 外要从索引中排除的文件。",
+  "Global MCP config": "全局 MCP 配置",
+  "Global storage across entire application": "整个应用的全局存储"
 }
