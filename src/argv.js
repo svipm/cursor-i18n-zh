@@ -5,25 +5,199 @@ function normalizeArgv(raw) {
   return /^\s*\{/.test(text) ? text : '{\n}';
 }
 
+function stripJsonComments(text) {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; out += ch; continue; }
+    if (ch === '/' && next === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      if (i < text.length) out += '\n';
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
+        if (text[i] === '\n') out += '\n';
+        i++;
+      }
+      i++;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function stripTrailingCommas(text) {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; out += ch; continue; }
+    if (ch === ',') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j++;
+      if (text[j] === '}' || text[j] === ']') continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function parseArgvJsonc(raw) {
+  const text = stripTrailingCommas(stripJsonComments(normalizeArgv(raw)).replace(/^\uFEFF/, ''));
+  return JSON.parse(text);
+}
+
+function skipWhitespaceAndComments(text, start) {
+  let i = start;
+  while (i < text.length) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch === '/' && next === '/') {
+      i += 2;
+      while (i < text.length && text[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i = Math.min(i + 2, text.length);
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+function stringEnd(text, start) {
+  let escaped = false;
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') return i + 1;
+  }
+  return -1;
+}
+
+function jsonStringValue(text, start, end) {
+  try { return JSON.parse(text.slice(start, end)); }
+  catch (_) { return null; }
+}
+
+function valueEnd(text, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '/' && next === '/') {
+      i += 2;
+      while (i < text.length && text[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    if (ch === '{' || ch === '[') { depth++; continue; }
+    if (ch === '}' || ch === ']') {
+      if (depth === 0) return i;
+      depth--;
+      continue;
+    }
+    if (ch === ',' && depth === 0) return i;
+  }
+  return text.length;
+}
+
+function findTopLevelLocaleValue(text) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '/' && next === '/') {
+      i += 2;
+      while (i < text.length && text[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      const end = stringEnd(text, i);
+      if (end === -1) return null;
+      if (depth === 1 && jsonStringValue(text, i, end) === 'locale') {
+        const colon = skipWhitespaceAndComments(text, end);
+        if (text[colon] === ':') {
+          const start = skipWhitespaceAndComments(text, colon + 1);
+          return { start, end: valueEnd(text, start) };
+        }
+      }
+      i = end - 1;
+      continue;
+    }
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth = Math.max(0, depth - 1);
+  }
+  return null;
+}
+
 function setLocaleInArgv(raw, locale) {
   const src = normalizeArgv(raw);
   const value = JSON.stringify(locale);
-  if (/"locale"\s*:/.test(src)) {
-    return src.replace(/("locale"\s*:\s*)"[^"]*"/, `$1${value}`);
-  }
+  const found = findTopLevelLocaleValue(src);
+  if (found) return `${src.slice(0, found.start)}${value}${src.slice(found.end)}`;
 
   const open = src.indexOf('{');
   const close = src.lastIndexOf('}');
-  if (open === -1 || close === -1 || close < open) return `{\n\t"locale": ${value}\n}`;
+  if (open === -1 || close === -1 || close < open) return `{
+\t"locale": ${value}
+}`;
 
   const before = src.slice(0, open + 1);
   const body = src.slice(open + 1, close);
   const after = src.slice(close);
   const hasBody = body.trim().length > 0;
-  const prefix = `\n\t"locale": ${value}`;
+  const prefix = `
+\t"locale": ${value}`;
   return hasBody
     ? `${before}${prefix},${body}${after}`
     : `${before}${prefix}\n${after}`;
 }
 
-module.exports = { setLocaleInArgv };
+module.exports = { setLocaleInArgv, parseArgvJsonc };

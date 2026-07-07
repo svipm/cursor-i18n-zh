@@ -153,6 +153,8 @@ npm run locate -- --verbose
 - 当前用户的 `%USERPROFILE%\.cursor\argv.json`, 用于设置 `locale`.
 - 当前用户的 `%APPDATA%\Cursor\clp`, 用于清理语言包缓存并让 Cursor 重建.
 
+工具会保留 Cursor 默认 `argv.json` 中的 `//` 注释, 并按 JSONC 规则校验和写入 `locale`.
+
 备份策略:
 
 - 首次安装会把当前 Cursor 版本的原始文件保存到 `backup/<Cursor版本>/files`.
@@ -221,8 +223,8 @@ npm run check -- --locale zh-tw
 推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 上传到发行版:
 
 ```powershell
-git tag -a v0.2.1 -m "v0.2.1"
-git push origin v0.2.1
+git tag -a v0.2.2 -m "v0.2.2"
+git push origin v0.2.2
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.

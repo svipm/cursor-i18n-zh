@@ -14,7 +14,7 @@ const { patchNls } = require('./nls');
 const { backupDir, ensureBackup, backupFilePath, listBackupFiles } = require('./backup');
 const { sha256b64, ensureDir } = require('./util');
 const { scanCode, scanNls } = require('./scan');
-const { setLocaleInArgv } = require('./argv');
+const { setLocaleInArgv, parseArgvJsonc } = require('./argv');
 const { DEFAULT_LOCALE, getLanguageProfile } = require('./locale');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -248,7 +248,7 @@ function cmdLang() {
   const argvPath = path.join(os.homedir(), '.cursor', 'argv.json');
   let raw = fs.existsSync(argvPath) ? fs.readFileSync(argvPath, 'utf8') : '{\n}';
   raw = setLocaleInArgv(raw, profile.locale);
-  JSON.parse(raw);
+  parseArgvJsonc(raw);
   ensureDir(path.dirname(argvPath));
   fs.writeFileSync(argvPath, raw);
   log(`已设置 locale = ${profile.locale} (${argvPath})`);
@@ -269,7 +269,7 @@ function cmdLang() {
 const commands = { apply: cmdApply, restore: cmdRestore, status: cmdStatus, locate: cmdLocate, scan: cmdScan, lang: cmdLang, check: cmdCheck };
 const cmd = process.argv[2];
 
-if (!cmd || !commands[cmd]) {
+function printUsage() {
   log('用法: node src/cli.js <apply|restore|status|locate|scan|lang|check> [--locale zh-cn|zh-tw]');
   log('  apply   打汉化补丁 (自动备份原文件, 可重复执行)');
   log('  restore 还原为原版文件');
@@ -279,7 +279,16 @@ if (!cmd || !commands[cmd]) {
   log('  lang    设置 locale 并安装对应官方中文语言包 (VS Code 基础界面)');
   log('  check   校验词典与本机 Cursor 路径, 不修改 Cursor');
   log('  --locale zh-cn|zh-tw  选择简体中文或繁體中文, 默认 zh-cn');
-  process.exit(cmd ? 1 : 0);
+}
+
+if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
+  printUsage();
+  process.exit(0);
+}
+
+if (!commands[cmd]) {
+  printUsage();
+  process.exit(1);
 }
 
 try {
