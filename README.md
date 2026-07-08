@@ -238,9 +238,8 @@ git push origin v0.2.2
 
 ## 鸣谢与友链
 
-- [Claude Desktop 中文补丁](https://github.com/javaht/claude-desktop-zh-cn): 本项目的基础翻译库约 1 万条来自该项目, 感谢作者贡献. 后续 7000 多条由本项目继续补充翻译, 覆盖会更完整.
-- [Claude Desktop zh-CN for Windows](https://github.com/chrichuang218/claude-desktop-zh): 这是一个带 GUI 界面的自动化工具, 给本项目带来了灵感. 鸣谢.
-- [LINUX DO](https://linux.do): 感谢 LINUX DO 社区的支持与讨论.
+- LINUX DO: <https://linux.do>
+  感谢 LINUX DO 社区的支持与讨论.
 
 ## 已知边界
 
