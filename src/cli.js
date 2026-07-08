@@ -11,11 +11,20 @@ const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON } = require('./config
 const { loadDicts } = require('./dict');
 const { applyToText } = require('./engine');
 const { patchNls } = require('./nls');
-const { backupDir, ensureBackup, backupFilePath, listBackupFiles } = require('./backup');
+const {
+  backupDir,
+  ensureBackup,
+  backupFilePath,
+  listBackupFiles,
+  validateBackupSources,
+  validateBackupFiles,
+  formatBackupSourceIssues,
+  formatBackupFileIssues,
+} = require('./backup');
 const { sha256b64, ensureDir } = require('./util');
 const { scanCode, scanNls } = require('./scan');
 const { setLocaleInArgv, parseArgvJsonc } = require('./argv');
-const { DEFAULT_LOCALE, getLanguageProfile } = require('./locale');
+const { DEFAULT_LOCALE, getLanguageProfile, listLanguageProfiles } = require('./locale');
 
 const ROOT = path.resolve(__dirname, '..');
 const DICT_DIR = path.join(ROOT, 'dict');
@@ -76,6 +85,17 @@ function updateChecksums(appDir, bdir, patchedRels) {
 }
 
 // 语言包缓存 (clp) 是按 nls 默认值合并生成的, 打补丁后必须清掉让其重建.
+
+function backupGuardTranslations() {
+  const values = new Set();
+  for (const item of listLanguageProfiles()) {
+    const dicts = loadDicts(DICT_DIR, { profile: item });
+    for (const entry of dicts.code.values()) if (entry.zh && entry.zh.length >= 2) values.add(entry.zh);
+    for (const zh of Object.values(dicts.nls)) if (zh && zh.length >= 2) values.add(zh);
+  }
+  return [...values].sort((a, b) => b.length - a.length);
+}
+
 function clearClpCache() {
   const clp = path.join(process.env.APPDATA || '', 'Cursor', 'clp');
   if (process.env.APPDATA && fs.existsSync(clp)) {
@@ -100,8 +120,14 @@ function cmdApply() {
   log(`词典: 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
 
   const targets = existingTargets(appDir);
+  const backupRels = [...targets, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON];
   const bdir = backupDir(ROOT, product.version);
-  const warns = ensureBackup(appDir, [...targets, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON], bdir, product);
+  const guardTranslations = backupGuardTranslations();
+  const backupFileIssues = validateBackupFiles(bdir, backupRels, { translations: guardTranslations });
+  if (backupFileIssues.length) throw new Error(formatBackupFileIssues(backupFileIssues, product.version));
+  const backupIssues = validateBackupSources(appDir, backupRels, bdir, product, { translations: guardTranslations });
+  if (backupIssues.length) throw new Error(formatBackupSourceIssues(backupIssues, product.version));
+  const warns = ensureBackup(appDir, backupRels, bdir, product);
   for (const w of warns) log(`[备份警告] ${w}`);
   log(`备份就绪: ${path.relative(ROOT, bdir)}`);
 
@@ -149,6 +175,8 @@ function cmdRestore() {
   const bdir = backupDir(ROOT, product.version);
   const files = listBackupFiles(bdir);
   if (!files.length) throw new Error(`没有版本 ${product.version} 的备份, 无法还原`);
+  const backupFileIssues = validateBackupFiles(bdir, files, { translations: backupGuardTranslations() });
+  if (backupFileIssues.length) throw new Error(formatBackupFileIssues(backupFileIssues, product.version));
   for (const rel of files) {
     fs.copyFileSync(backupFilePath(bdir, rel), path.join(appDir, rel));
   }

@@ -4,6 +4,92 @@ const fs = require('fs');
 const path = require('path');
 const { sha256b64, ensureDir } = require('./util');
 
+
+function backupExists(bdir, rel) {
+  return fs.existsSync(backupFilePath(bdir, rel));
+}
+
+function findLocalizedMatches(text, translations, limit = 5) {
+  const matches = [];
+  for (const item of translations || []) {
+    if (!item || item.length < 2) continue;
+    if (text.includes(item)) {
+      matches.push(item);
+      if (matches.length >= limit) break;
+    }
+  }
+  return matches;
+}
+
+// 创建新备份前必须确认来源仍像原版. 否则会把已汉化文件写成“原始备份”, 导致恢复英文失败.
+function validateBackupSources(appDir, relPaths, bdir, product, options = {}) {
+  const issues = [];
+  const translations = options.translations || [];
+
+  for (const rel of relPaths) {
+    if (backupExists(bdir, rel)) continue;
+    const src = path.join(appDir, rel);
+    if (!fs.existsSync(src)) continue;
+
+    const buf = fs.readFileSync(src);
+    const sha = sha256b64(buf);
+    const expected = product.checksums && product.checksums[rel.replace(/^out\//, '')];
+    if (expected && expected !== sha) {
+      issues.push({ rel, reason: 'checksum', expected, actual: sha });
+      continue;
+    }
+
+    if (/\.(js|json)$/i.test(rel)) {
+      const matches = findLocalizedMatches(buf.toString('utf8'), translations);
+      if (matches.length) issues.push({ rel, reason: 'localized', matches });
+    }
+  }
+
+  return issues;
+}
+
+function validateBackupFiles(bdir, relPaths, options = {}) {
+  const issues = [];
+  const translations = options.translations || [];
+
+  for (const rel of relPaths) {
+    const src = backupFilePath(bdir, rel);
+    if (!fs.existsSync(src) || !/\.(js|json)$/i.test(rel)) continue;
+    const matches = findLocalizedMatches(fs.readFileSync(src, 'utf8'), translations);
+    if (matches.length) issues.push({ rel, reason: 'localized-backup', matches });
+  }
+
+  return issues;
+}
+
+function formatBackupFileIssues(issues, version) {
+  const lines = [
+    `检测到 Cursor ${version} 的备份文件已包含汉化内容; 已停止操作, 避免继续使用错误备份导致无法恢复英文.`,
+  ];
+  for (const issue of issues.slice(0, 8)) {
+    lines.push(`- ${issue.rel}: 检测到已汉化内容 (${issue.matches.join(', ')}).`);
+  }
+  if (issues.length > 8) lines.push(`- 另有 ${issues.length - 8} 个备份文件存在同类问题.`);
+  lines.push('处理方式: 删除错误 backup 后, 先重装/更新 Cursor 让文件回到原版, 再重新安装汉化并生成新的原始备份.');
+  return lines.join('\n');
+}
+
+function formatBackupSourceIssues(issues, version) {
+  const lines = [
+    `检测到 Cursor ${version} 的原始备份缺失, 且当前文件不像原版; 已停止安装, 避免把已汉化文件备份为原版.`,
+  ];
+  for (const issue of issues.slice(0, 8)) {
+    if (issue.reason === 'checksum') {
+      lines.push(`- ${issue.rel}: 当前 checksum 与 product.json 不一致.`);
+    } else if (issue.reason === 'localized') {
+      lines.push(`- ${issue.rel}: 检测到已汉化内容 (${issue.matches.join(', ')}).`);
+    }
+  }
+  if (issues.length > 8) lines.push(`- 另有 ${issues.length - 8} 个文件存在同类问题.`);
+  lines.push('处理方式: 先使用仍保留原始 backup 的旧工具目录执行还原, 或重装/更新 Cursor 让文件回到原版, 再重新安装汉化.');
+  return lines.join('\n');
+}
+
 // 备份布局: <项目>/backup/<版本>/files/<相对路径> + meta.json
 function backupDir(projectRoot, version) {
   return path.join(projectRoot, 'backup', version);
@@ -57,4 +143,14 @@ function listBackupFiles(bdir) {
   return out;
 }
 
-module.exports = { backupDir, ensureBackup, backupFilePath, listBackupFiles };
+module.exports = {
+  backupDir,
+  ensureBackup,
+  backupFilePath,
+  listBackupFiles,
+  validateBackupSources,
+  validateBackupFiles,
+  formatBackupSourceIssues,
+  formatBackupFileIssues,
+  findLocalizedMatches,
+};

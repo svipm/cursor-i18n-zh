@@ -52,12 +52,17 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 3. 确认恢复.
 4. 重新打开 Cursor.
 
+## 效果图
+
+![Cursor 汉化效果图 1](assets/screenshots/effect-1.png)
+
+![Cursor 汉化效果图 2](assets/screenshots/effect-2.png)
+
 ## 根目录入口
 
 发行版 zip 解压后, 根目录会直接提供这些可双击文件:
 
 - `Cursor汉化助手.cmd`: 推荐入口. 打开终端菜单, 先展示声明, 再显示 `1. 安装汉化`, `2. 还原成默认`.
-- `Cursor汉化助手-图形界面.cmd`: 打开图形界面, 支持语言选择, 一键安装, 一键恢复.
 - `一键安装汉化.cmd`: 直接进入安装流程, 仍会先展示声明并要求输入同意文字.
 - `还原默认.cmd`: 直接进入恢复流程, 仍会先展示声明并要求输入同意文字.
 
@@ -158,8 +163,10 @@ npm run locate -- --verbose
 备份策略:
 
 - 首次安装会把当前 Cursor 版本的原始文件保存到 `backup/<Cursor版本>/files`.
+- 创建新备份前会先校验来源文件; 如果当前 Cursor 已被汉化或已被其他工具修改, 会停止安装, 避免把汉化后的文件误备份成原版.
 - 已存在的备份不会被覆盖, 避免把补丁后的文件误当作原版.
 - `restore` 只从对应 Cursor 版本的备份目录复制原文件回去.
+- 恢复前会检查备份内容; 如果备份本身已经包含汉化内容, 会停止恢复并提示先重装或更新 Cursor 后重新生成干净备份.
 
 项目安全边界:
 
@@ -175,7 +182,7 @@ npm run locate -- --verbose
 
 1. 自动定位 Cursor 安装目录.
 2. 读取 Cursor 版本和 `product.json`.
-3. 备份当前版本原始文件.
+3. 校验当前文件仍为原版, 并备份当前版本原始文件.
 4. 设置 Cursor `argv.json` 中的 `locale`.
 5. 尝试安装对应官方中文语言包.
 6. 将官方语言包内容合并进 Cursor 内置 `nls.messages.json`, 覆盖顶部菜单, 命令面板, VS Code 设置等基础界面.
@@ -228,6 +235,12 @@ git push origin v0.2.2
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.
+
+## 鸣谢与友链
+
+- [Claude Desktop 中文补丁](https://github.com/javaht/claude-desktop-zh-cn): 本项目的基础翻译库约 1 万条来自该项目, 感谢作者贡献. 后续 7000 多条由本项目继续补充翻译, 覆盖会更完整.
+- [Claude Desktop zh-CN for Windows](https://github.com/chrichuang218/claude-desktop-zh): 这是一个带 GUI 界面的自动化工具, 给本项目带来了灵感. 鸣谢.
+- [LINUX DO](https://linux.do): 感谢 LINUX DO 社区的支持与讨论.
 
 ## 已知边界
 

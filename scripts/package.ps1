@@ -11,6 +11,7 @@ if (Test-Path $Zip) { Remove-Item -LiteralPath $Zip -Force }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 
 $include = @(
+  'assets',
   'dict',
   'scripts',
   'src',
