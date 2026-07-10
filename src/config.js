@@ -8,6 +8,13 @@ const CODE_TARGETS = [
   'out/main.js',
 ];
 
+// 工作台入口包自动发现: 兼容不同 Cursor 版本新增或改名的工作台入口包.
+// 与 CODE_TARGETS 合并去重 (锚点优先, 稳定顺序), 缺失自动跳过, 提供前向兼容.
+const WORKBENCH_DIR = 'out/vs/workbench';
+const WORKBENCH_BUNDLE_RE = /^workbench\..+\.js$/;
+// 入口包体积下限: 真实 UI 包均在 MB 级, 低于此值的非入口文件跳过, 避免误伤.
+const WORKBENCH_BUNDLE_MIN_SIZE = 64 * 1024;
+
 const NLS_MESSAGES = 'out/nls.messages.json';
 const NLS_KEYS = 'out/nls.keys.json';
 const PRODUCT_JSON = 'product.json';
@@ -34,6 +41,7 @@ const HTML_ATTRS = [
 const CURSOR_NLS_RE = /aiMarkdown|aiSettings|aiContext|aicontext|aiReview|aiFeatures|aiBlame|aiCodeTracking|composer|cursor[A-Z]|\.cursor\.|\.cursor$|bugbot|Bugbot|memories|backgroundAgent|browserAutomation|anysphere|glass|chimes|contextPicker|shadowWorkspace|cppSettings|cmdk|promptBar/;
 
 module.exports = {
-  CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON,
+  CODE_TARGETS, WORKBENCH_DIR, WORKBENCH_BUNDLE_RE, WORKBENCH_BUNDLE_MIN_SIZE,
+  NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON,
   PROPS, HTML_ATTRS, CURSOR_NLS_RE,
 };

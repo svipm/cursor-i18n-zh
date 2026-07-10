@@ -66,8 +66,17 @@ function scanCode(appDir, targets, outDir) {
 }
 
 function scanNls(appDir, outDir) {
-  const keys = readJson(path.join(appDir, NLS_KEYS));
-  const msgs = readJson(path.join(appDir, NLS_MESSAGES));
+  const keysPath = path.join(appDir, NLS_KEYS);
+  const msgsPath = path.join(appDir, NLS_MESSAGES);
+  // 兼容无独立 nls 文件的 Cursor 版本: 跳过 nls 扫描而非抛错, 代码层扫描仍可用.
+  if (!fs.existsSync(keysPath) || !fs.existsSync(msgsPath)) {
+    ensureDir(outDir);
+    const out = path.join(outDir, 'scan-nls.tsv');
+    fs.writeFileSync(out, 'key\tenglish\n');
+    return { out, total: 0 };
+  }
+  const keys = readJson(keysPath);
+  const msgs = readJson(msgsPath);
   let i = 0;
   const rows = [];
   for (const [mod, ks] of keys) {

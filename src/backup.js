@@ -108,6 +108,11 @@ function ensureBackup(appDir, relPaths, bdir, product) {
     const dst = path.join(bdir, 'files', rel);
     if (fs.existsSync(dst)) continue;
     const src = path.join(appDir, rel);
+    if (!fs.existsSync(src)) {
+      // 当前 Cursor 版本没有该目标文件 (例如新版本移除了某 nls 文件), 跳过备份, 不报错.
+      // 调用方依赖的 restore 也会因备份缺失而自然跳过该文件, 保持前向兼容.
+      continue;
+    }
     const buf = fs.readFileSync(src);
     const sha = sha256b64(buf);
     const expected = product.checksums && product.checksums[rel.replace(/^out\//, '')];

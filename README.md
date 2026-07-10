@@ -152,6 +152,8 @@ npm run locate -- --verbose
 - 检查当前版本可补丁目标是否存在.
 - 预生成补丁结果, 并用 `node --check` 做 JavaScript 语法预检.
 
+工作台入口包会自动发现: 除内置锚点目标 (`workbench.glass.main.js`, `workbench.desktop.main.js`, `workbench.anysphere-ui-automations.js`, `out/main.js`) 外, 还会扫描 `out/vs/workbench/` 下其它大体积 `workbench.*.js` 入口包, 兼容未来 Cursor 版本新增或改名的工作台包. 缺失的目标会自动跳过, 不存在的文件不会被备份也不会报错.
+
 安装会修改的位置:
 
 - Cursor 安装目录下的 `out/vs/workbench/*.js`, `out/main.js`, `out/nls.messages.json`, `product.json`.
@@ -165,7 +167,8 @@ npm run locate -- --verbose
 - 首次安装会把当前 Cursor 版本的原始文件保存到 `backup/<Cursor版本>/files`.
 - 创建新备份前会先校验来源文件; 如果当前 Cursor 已被汉化或已被其他工具修改, 会停止安装, 避免把汉化后的文件误备份成原版.
 - 已存在的备份不会被覆盖, 避免把补丁后的文件误当作原版.
-- `restore` 只从对应 Cursor 版本的备份目录复制原文件回去.
+- 当前版本不存在的文件会被跳过 (例如某些 Cursor 版本没有独立 `nls.messages.json`), 不会因文件缺失而中断备份或安装.
+- `restore` 只从对应 Cursor 版本的备份目录复制原文件回去, 自动重建缺失的子目录.
 - 恢复前会检查备份内容; 如果备份本身已经包含汉化内容, 会停止恢复并提示先重装或更新 Cursor 后重新生成干净备份.
 
 项目安全边界:

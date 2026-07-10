@@ -8,6 +8,7 @@ const cp = require('child_process');
 
 const { locateApp, readProduct, resolveCandidates } = require('./locate');
 const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON } = require('./config');
+const { discoverTargets } = require('./discover');
 const { loadDicts } = require('./dict');
 const { applyToText } = require('./engine');
 const { patchNls } = require('./nls');
@@ -48,7 +49,7 @@ function selectedProfile() {
 }
 
 function existingTargets(appDir) {
-  return CODE_TARGETS.filter((rel) => fs.existsSync(path.join(appDir, rel)));
+  return discoverTargets(appDir).filter((rel) => fs.existsSync(path.join(appDir, rel)));
 }
 
 // 语法校验: 分别按 ESM/CJS 跑 node --check, 任一通过即可 (产物两种形态都有).
@@ -120,6 +121,9 @@ function cmdApply() {
   log(`词典: 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
 
   const targets = existingTargets(appDir);
+  if (!targets.length) {
+    throw new Error('未找到任何可补丁的工作台入口包 (out/vs/workbench/workbench.*.js, out/main.js). 该 Cursor 版本可能不被支持, 或安装目录损坏.');
+  }
   const backupRels = [...targets, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON];
   const bdir = backupDir(ROOT, product.version);
   const guardTranslations = backupGuardTranslations();
@@ -145,16 +149,22 @@ function cmdApply() {
   }
 
   {
-    const { count, unknown, langPackCount, langPackDir, langPackId, usedFallbackLanguagePack } = patchNls(appDir, backupFilePath(bdir, NLS_MESSAGES), dicts.nls, { profile });
-    report.files[NLS_MESSAGES] = { languagePack: langPackCount, cursorDict: count };
-    if (langPackDir) {
-      const fallback = usedFallbackLanguagePack ? ', fallback 后转换' : '';
-      log(`已导入官方中文语言包: ${path.basename(langPackDir)} (${langPackId}${fallback}, 替换 ${langPackCount} 条)`);
+    const nlsKeysPath = path.join(appDir, NLS_KEYS);
+    const nlsMsgBackup = backupFilePath(bdir, NLS_MESSAGES);
+    if (!fs.existsSync(nlsKeysPath) || !fs.existsSync(nlsMsgBackup)) {
+      log(`[nls 跳过] 当前 Cursor 版本无 ${NLS_KEYS} 或 ${NLS_MESSAGES}, 跳过 nls 层补丁 (代码层补丁仍生效)`);
     } else {
-      log(`[nls 警告] 未找到官方中文语言包 ${profile.languagePackId}, VS Code 基础界面不会由 nls 补丁覆盖`);
+      const { count, unknown, langPackCount, langPackDir, langPackId, usedFallbackLanguagePack } = patchNls(appDir, nlsMsgBackup, dicts.nls, { profile });
+      report.files[NLS_MESSAGES] = { languagePack: langPackCount, cursorDict: count };
+      if (langPackDir) {
+        const fallback = usedFallbackLanguagePack ? ', fallback 后转换' : '';
+        log(`已导入官方中文语言包: ${path.basename(langPackDir)} (${langPackId}${fallback}, 替换 ${langPackCount} 条)`);
+      } else {
+        log(`[nls 警告] 未找到官方中文语言包 ${profile.languagePackId}, VS Code 基础界面不会由 nls 补丁覆盖`);
+      }
+      log(`已打补丁: ${NLS_MESSAGES} (Cursor 专有替换 ${count} 条)`);
+      for (const k of unknown) log(`[nls 警告] 找不到 key: ${k}`);
     }
-    log(`已打补丁: ${NLS_MESSAGES} (Cursor 专有替换 ${count} 条)`);
-    for (const k of unknown) log(`[nls 警告] 找不到 key: ${k}`);
   }
 
   const updated = updateChecksums(appDir, bdir, targets);
@@ -178,7 +188,9 @@ function cmdRestore() {
   const backupFileIssues = validateBackupFiles(bdir, files, { translations: backupGuardTranslations() });
   if (backupFileIssues.length) throw new Error(formatBackupFileIssues(backupFileIssues, product.version));
   for (const rel of files) {
-    fs.copyFileSync(backupFilePath(bdir, rel), path.join(appDir, rel));
+    const dst = path.join(appDir, rel);
+    ensureDir(path.dirname(dst));
+    fs.copyFileSync(backupFilePath(bdir, rel), dst);
   }
   clearClpCache();
   log(`已还原 ${files.length} 个文件 (版本 ${product.version}). 重启 Cursor 生效.`);
@@ -258,13 +270,17 @@ function cmdCheck() {
   try {
     const appDir = locateApp();
     const targets = existingTargets(appDir);
-    log(`Cursor 安装目录可用: ${appDir}`);
-    log(`可补丁目标: ${targets.join(', ') || '(无)'}`);
-    for (const rel of targets) {
-      const src = fs.readFileSync(path.join(appDir, rel), 'utf8');
-      const { text, total } = applyToText(src, dicts.code);
-      syntaxCheck(text, rel);
-      log(`语法预检通过: ${rel} (预计替换 ${total} 处)`);
+    if (!targets.length) {
+      log(`[环境提示] 未在 ${appDir} 找到可补丁的工作台入口包, 该 Cursor 版本可能不被支持`);
+    } else {
+      log(`Cursor 安装目录可用: ${appDir}`);
+      log(`可补丁目标: ${targets.join(', ')}`);
+      for (const rel of targets) {
+        const src = fs.readFileSync(path.join(appDir, rel), 'utf8');
+        const { text, total } = applyToText(src, dicts.code);
+        syntaxCheck(text, rel);
+        log(`语法预检通过: ${rel} (预计替换 ${total} 处)`);
+      }
     }
   } catch (e) {
     log(`[环境提示] ${e.message}`);
