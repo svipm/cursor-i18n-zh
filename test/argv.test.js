@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { setLocaleInArgv, parseArgvJsonc } = require('../src/argv');
+const { getLocaleState, removeLocaleFromArgv, setLocaleInArgv, parseArgvJsonc } = require('../src/argv');
 
 test('creates valid argv json with locale', () => {
   const out = setLocaleInArgv('', 'zh-cn');
@@ -79,4 +79,38 @@ test('replaces non-string top-level locale value', () => {
 }`;
   const out = setLocaleInArgv(raw, 'zh-cn');
   assert.deepEqual(parseArgvJsonc(out), { locale: 'zh-cn', foo: true });
+});
+
+test('rejects invalid non-empty argv instead of replacing it', () => {
+  assert.throws(() => setLocaleInArgv('not-json', 'zh-cn'), /JSON/);
+});
+
+test('reads only active top-level locale state', () => {
+  const raw = `{
+    // "locale": "commented",
+    "nested": { "locale": "nested" },
+    "locale": "zh-tw"
+  }`;
+  assert.deepEqual(getLocaleState(raw), { present: true, value: 'zh-tw' });
+  assert.deepEqual(getLocaleState('{ "foo": true }'), { present: false, value: undefined });
+});
+
+test('removes first locale property and preserves remaining jsonc', () => {
+  const raw = `{
+    "locale": "zh-cn",
+    // keep this setting
+    "foo": true
+  }`;
+  const out = removeLocaleFromArgv(raw);
+  assert.match(out, /keep this setting/);
+  assert.deepEqual(parseArgvJsonc(out), { foo: true });
+});
+
+test('removes last locale property without leaving an invalid comma', () => {
+  const raw = `{
+    "foo": true,
+    "locale": "zh-cn"
+  }`;
+  const out = removeLocaleFromArgv(raw);
+  assert.deepEqual(parseArgvJsonc(out), { foo: true });
 });

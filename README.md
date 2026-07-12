@@ -37,20 +37,22 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 
 使用步骤:
 
-1. 下载 `cursor-i18n-zh-windows.zip`.
-2. 解压到任意目录.
-3. 双击根目录的 `Cursor汉化助手.cmd` 打开终端菜单.
-4. 阅读声明, 完整输入同意文字.
-5. 选择 `简体中文` 或 `繁體中文`.
-6. 点击或选择 `一键安装`.
-7. 重新打开 Cursor.
+1. 安装 Node.js 18 或更高版本.
+2. 下载 `cursor-i18n-zh-windows.zip`.
+3. 解压到任意目录.
+4. 双击根目录的 `Cursor汉化助手.cmd` 打开终端菜单.
+5. 阅读声明, 完整输入同意文字.
+6. 选择 `简体中文` 或 `繁體中文`.
+7. 点击或选择 `一键安装`.
+8. 重新打开 Cursor.
 
 恢复原版:
 
 1. 双击根目录的 `还原默认.cmd`, 或打开 `Cursor汉化助手.cmd` 后选择 `2. 还原成默认`.
 2. 阅读声明, 完整输入同意文字.
 3. 确认恢复.
-4. 重新打开 Cursor.
+4. 工具会事务化恢复 Cursor 文件和安装前的语言设置; 如果语言包由本工具安装, 也会将其卸载.
+5. 重新打开 Cursor.
 
 ## 效果图
 
@@ -92,6 +94,8 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 npm run locate
 npm run status
 npm run check
+npm run dict-check
+npm run patch-install -- --locale zh-cn
 npm run lang
 npm run apply
 npm run restore
@@ -102,12 +106,10 @@ npm test
 
 ```powershell
 npm run check -- --locale zh-cn
-npm run lang -- --locale zh-cn
-npm run apply -- --locale zh-cn
+npm run patch-install -- --locale zh-cn
 
 npm run check -- --locale zh-tw
-npm run lang -- --locale zh-tw
-npm run apply -- --locale zh-tw
+npm run patch-install -- --locale zh-tw
 ```
 
 可用语言:
@@ -142,7 +144,7 @@ npm run locate -- --verbose
 
 ## 安全检查
 
-`npm run check` 不修改 Cursor. 一键安装会先执行这项检查.
+`npm run check` 是严格预检, 不修改 Cursor. 定位失败, 目标缺失, 备份异常, 自定义 NLS 词典歧义, 占位符错误或补丁后语法错误都会返回非零状态并停止安装. 官方语言包自身的歧义项和占位符不一致项会跳过并报告. `npm run dict-check` 只校验词典, 供 CI 使用.
 
 检查内容:
 
@@ -150,7 +152,8 @@ npm run locate -- --verbose
 - 校验译文是否包含高风险字符, 例如 `<`, `>`, 引号, 反斜杠和模板占位符.
 - 自动定位 Cursor 安装目录.
 - 检查当前版本可补丁目标是否存在.
-- 预生成补丁结果, 并用 `node --check` 做 JavaScript 语法预检.
+- 校验自定义 `dict/nls.json` 的歧义和占位符错误; 跳过并报告官方语言包中同一 key 对应不同原文的歧义项, 以及占位符不一致项.
+- 预生成全部补丁结果, 并使用 Node.js 语法检查器校验 JavaScript.
 
 工作台入口包会自动发现: 除内置锚点目标 (`workbench.glass.main.js`, `workbench.desktop.main.js`, `workbench.anysphere-ui-automations.js`, `out/main.js`) 外, 还会扫描 `out/vs/workbench/` 下其它大体积 `workbench.*.js` 入口包, 兼容未来 Cursor 版本新增或改名的工作台包. 缺失的目标会自动跳过, 不存在的文件不会被备份也不会报错.
 
@@ -165,10 +168,13 @@ npm run locate -- --verbose
 备份策略:
 
 - 首次安装会把当前 Cursor 版本的原始文件保存到 `backup/<Cursor版本>/files`.
+- `meta.json` 会记录 Cursor version, commit, 文件大小和 SHA256; 安装和恢复前都会重新校验.
 - 创建新备份前会先校验来源文件; 如果当前 Cursor 已被汉化或已被其他工具修改, 会停止安装, 避免把汉化后的文件误备份成原版.
 - 已存在的备份不会被覆盖, 避免把补丁后的文件误当作原版.
+- 备份和正式文件均使用同目录临时文件提交; 中途失败会清理本轮新增内容.
 - 当前版本不存在的文件会被跳过 (例如某些 Cursor 版本没有独立 `nls.messages.json`), 不会因文件缺失而中断备份或安装.
-- `restore` 只从对应 Cursor 版本的备份目录复制原文件回去, 自动重建缺失的子目录.
+- 安装前会保存原始 locale 和语言包存在状态; `restore` 会与资源文件一起恢复.
+- `apply` 和 `restore` 会先暂存并验证全部目标, 再统一提交; 任一替换失败会自动回滚已提交文件.
 - 恢复前会检查备份内容; 如果备份本身已经包含汉化内容, 会停止恢复并提示先重装或更新 Cursor 后重新生成干净备份.
 
 项目安全边界:
@@ -185,16 +191,16 @@ npm run locate -- --verbose
 
 1. 自动定位 Cursor 安装目录.
 2. 读取 Cursor 版本和 `product.json`.
-3. 校验当前文件仍为原版, 并备份当前版本原始文件.
-4. 设置 Cursor `argv.json` 中的 `locale`.
-5. 尝试安装对应官方中文语言包.
-6. 将官方语言包内容合并进 Cursor 内置 `nls.messages.json`, 覆盖顶部菜单, 命令面板, VS Code 设置等基础界面.
-7. 用 `dict/nls.json` 覆盖 Cursor 专有 nls 文案.
-8. 用代码层词典替换 Cursor 专有前端文案.
-9. 更新 `product.json` 中已有 checksum.
+3. 在关闭 Cursor 前完成严格预检, 预生成全部补丁并校验语法.
+4. 关闭 Cursor, 校验并备份当前版本原始文件.
+5. 保存安装前的 locale 和语言包状态.
+6. 安装对应官方中文语言包并设置 `argv.json` 的 locale.
+7. 合并官方语言包和 `dict/nls.json`, 再生成代码层词典补丁.
+8. 根据补丁结果更新 `product.json` 中已有 checksum.
+9. 将全部结果暂存后统一提交; 任一步失败会回滚文件和本次用户状态修改.
 10. 清理语言包缓存, 让 Cursor 重启后重新生成.
 
-繁體中文模式会以简体词典为源, 在加载词典和导入语言包时执行简转繁转换. 这样维护时只需要维护一份中文词典.
+繁體中文模式下, 项目自定义简体词典始终会使用 `opencc-js` 的台湾繁体词组转换, 再应用项目内的技术术语覆盖. 官方语言包会优先使用原生 `zh-Hant`; 原生繁体内容不会二次转换. 只有本机没有 `zh-Hant` 而 fallback 到 `zh-Hans` 官方语言包时, 才会把官方简体内容转换为繁体.
 
 ## 维护词典
 
@@ -226,15 +232,16 @@ npm run check -- --locale zh-tw
 每次 push 或 pull request 会自动执行:
 
 - `npm test`
-- `npm run check`
+- `npm run dict-check`
 - `scripts/package.ps1`
+- 解压发行包并运行 CLI 帮助命令做冒烟测试
 - 上传 `cursor-i18n-zh-windows.zip` artifact
 
 推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 上传到发行版:
 
 ```powershell
-git tag -a v0.2.2 -m "v0.2.2"
-git push origin v0.2.2
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.
@@ -249,4 +256,5 @@ git push origin v0.2.2
 - Cursor 每个版本的前端产物可能变化, 新版本可能出现英文残留.
 - 顶部菜单和 VS Code 设置主要依赖官方语言包与内置 NLS 合并.
 - Cursor 专有新功能需要持续补充 `dict/*.json`.
-- 如果 Cursor 正在运行导致文件占用, 请完全退出后重试.
+- 同一 NLS key 对应不同英文原文时会跳过该官方语言包词条, 避免错误覆盖.
+- 安装官方语言包需要网络; 发行包仍要求本机已有 Node.js 18 或更高版本.

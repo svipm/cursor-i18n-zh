@@ -7,7 +7,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { sha256b64, ensureDir } = require('../src/util');
-const { validateBackupSources, validateBackupFiles, formatBackupSourceIssues, formatBackupFileIssues } = require('../src/backup');
+const {
+  ensureBackup,
+  validateBackupSources,
+  validateBackupFiles,
+  formatBackupSourceIssues,
+  formatBackupFileIssues,
+} = require('../src/backup');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-backup-'));
@@ -53,8 +59,14 @@ test('does not revalidate files that already have backups', () => {
   ensureDir(path.dirname(path.join(app, rel)));
   ensureDir(path.dirname(path.join(bdir, 'files', rel)));
   fs.writeFileSync(path.join(app, rel), 'const title = "设置";');
-  fs.writeFileSync(path.join(bdir, 'files', rel), 'const title = "Settings";');
-  const product = { version: '1.0.0', checksums: {} };
+  const backup = 'const title = "Settings";';
+  fs.writeFileSync(path.join(bdir, 'files', rel), backup);
+  fs.writeFileSync(path.join(bdir, 'meta.json'), JSON.stringify({
+    version: '1.0.0',
+    commit: null,
+    files: { [rel]: { sha256: sha256b64(Buffer.from(backup)), size: Buffer.byteLength(backup) } },
+  }));
+  const product = { version: '1.0.0', commit: null, checksums: {} };
 
   const issues = validateBackupSources(app, [rel], bdir, product, { translations: ['设置'] });
   assert.deepEqual(issues, []);
@@ -66,12 +78,101 @@ test('detects localized content inside existing backup files', () => {
   const bdir = path.join(root, 'backup', '1.0.0');
   const rel = 'out/main.js';
   ensureDir(path.dirname(path.join(bdir, 'files', rel)));
-  fs.writeFileSync(path.join(bdir, 'files', rel), 'const title = "设置";');
+  const backup = 'const title = "设置";';
+  fs.writeFileSync(path.join(bdir, 'files', rel), backup);
+  fs.writeFileSync(path.join(bdir, 'meta.json'), JSON.stringify({
+    version: '1.0.0',
+    commit: 'abc123',
+    files: { [rel]: { sha256: sha256b64(Buffer.from(backup)), size: Buffer.byteLength(backup) } },
+  }));
 
   const issues = validateBackupFiles(bdir, [rel], { translations: ['设置'] });
   assert.equal(issues.length, 1);
   assert.equal(issues[0].reason, 'localized-backup');
   assert.match(formatBackupFileIssues(issues, '1.0.0'), /备份文件已包含汉化内容/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('rejects an existing backup from another commit of the same version', () => {
+  const root = tmp();
+  const app = path.join(root, 'app');
+  const bdir = path.join(root, 'backup', '1.0.0');
+  const rel = 'out/main.js';
+  ensureDir(path.dirname(path.join(app, rel)));
+  fs.writeFileSync(path.join(app, rel), 'original');
+  ensureBackup(app, [rel], bdir, { version: '1.0.0', commit: 'commit-a', checksums: {} });
+
+  const product = { version: '1.0.0', commit: 'commit-b', checksums: {} };
+  const issues = validateBackupSources(app, [rel], bdir, product);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].reason, 'metadata-commit');
+  assert.throws(() => ensureBackup(app, [rel], bdir, product), /备份 commit 不匹配/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('rejects a backup whose metadata version does not match the current Cursor', () => {
+  const root = tmp();
+  const app = path.join(root, 'app');
+  const bdir = path.join(root, 'backup', '1.0.0');
+  const rel = 'out/main.js';
+  ensureDir(path.dirname(path.join(app, rel)));
+  fs.writeFileSync(path.join(app, rel), 'original');
+  ensureBackup(app, [rel], bdir, { version: '1.0.0', commit: 'abc123', checksums: {} });
+
+  const issues = validateBackupFiles(bdir, [rel], {
+    product: { version: '2.0.0', commit: 'abc123' },
+  });
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].reason, 'metadata-version');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('detects backup size and sha256 corruption from metadata', () => {
+  const root = tmp();
+  const app = path.join(root, 'app');
+  const bdir = path.join(root, 'backup', '1.0.0');
+  const rel = 'out/main.js';
+  ensureDir(path.dirname(path.join(app, rel)));
+  fs.writeFileSync(path.join(app, rel), 'original');
+  ensureBackup(app, [rel], bdir, { version: '1.0.0', commit: 'abc123', checksums: {} });
+  fs.writeFileSync(path.join(bdir, 'files', rel), 'damaged-content');
+
+  const issues = validateBackupFiles(bdir, [rel], {
+    product: { version: '1.0.0', commit: 'abc123' },
+  });
+  assert.deepEqual(new Set(issues.map((issue) => issue.reason)), new Set(['backup-size', 'backup-checksum']));
+  assert.match(formatBackupFileIssues(issues, '1.0.0'), /身份或完整性校验失败/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('rolls back newly copied files when atomic metadata replacement fails', () => {
+  const root = tmp();
+  const app = path.join(root, 'app');
+  const bdir = path.join(root, 'backup', '1.0.0');
+  const rel = 'out/main.js';
+  ensureDir(path.dirname(path.join(app, rel)));
+  fs.writeFileSync(path.join(app, rel), 'original');
+
+  const fileOps = {
+    writeFileSync: fs.writeFileSync.bind(fs),
+    renameSync(src, dst) {
+      if (dst === path.join(bdir, 'meta.json')) throw new Error('simulated metadata rename failure');
+      fs.renameSync(src, dst);
+    },
+    rmSync: fs.rmSync.bind(fs),
+    rmdirSync: fs.rmdirSync.bind(fs),
+  };
+
+  assert.throws(
+    () => ensureBackup(app, [rel], bdir, { version: '1.0.0', commit: 'abc123', checksums: {} }, { fileOps }),
+    /simulated metadata rename failure/,
+  );
+  assert.equal(fs.existsSync(path.join(bdir, 'files', rel)), false);
+  assert.equal(fs.existsSync(path.join(bdir, 'meta.json')), false);
+  const leftovers = fs.existsSync(bdir)
+    ? fs.readdirSync(bdir, { recursive: true }).filter((name) => String(name).includes('.tmp-'))
+    : [];
+  assert.deepEqual(leftovers, []);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

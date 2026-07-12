@@ -33,6 +33,9 @@ function loadDicts(dictDir, options = {}) {
     } catch (e) {
       throw new Error(`词典 ${f} 不是合法 JSON: ${e.message}`);
     }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error(`词典 ${f} 顶层必须是 JSON 对象`);
+    }
 
     if (f === 'nls.json') {
       for (const [key, zh] of Object.entries(data)) {
@@ -57,6 +60,9 @@ function loadDicts(dictDir, options = {}) {
         warnings.push(`${f}: "${en}" 译文含禁止字符 (<> " ' \` \\ 或 \${), 跳过`); continue;
       }
       if (item.ctx) {
+        if (!Array.isArray(item.ctx)) {
+          warnings.push(`${f}: "${en}" ctx 必须是数组, 跳过`); continue;
+        }
         const bad = item.ctx.filter((c) => !VALID_CTX.has(c));
         if (bad.length) { warnings.push(`${f}: "${en}" ctx 非法: ${bad.join(',')}, 跳过`); continue; }
       }

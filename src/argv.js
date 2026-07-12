@@ -1,8 +1,7 @@
 'use strict';
 
 function normalizeArgv(raw) {
-  const text = raw && raw.trim() ? raw : '{\n}';
-  return /^\s*\{/.test(text) ? text : '{\n}';
+  return raw && raw.trim() ? raw : '{\n}';
 }
 
 function stripJsonComments(text) {
@@ -144,6 +143,7 @@ function valueEnd(text, start) {
 
 function findTopLevelLocaleValue(text) {
   let depth = 0;
+  let lastTopLevelComma = -1;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
@@ -165,7 +165,7 @@ function findTopLevelLocaleValue(text) {
         const colon = skipWhitespaceAndComments(text, end);
         if (text[colon] === ':') {
           const start = skipWhitespaceAndComments(text, colon + 1);
-          return { start, end: valueEnd(text, start) };
+          return { keyStart: i, commaBefore: lastTopLevelComma, start, end: valueEnd(text, start) };
         }
       }
       i = end - 1;
@@ -173,21 +173,21 @@ function findTopLevelLocaleValue(text) {
     }
     if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') depth = Math.max(0, depth - 1);
+    else if (ch === ',' && depth === 1) lastTopLevelComma = i;
   }
   return null;
 }
 
 function setLocaleInArgv(raw, locale) {
   const src = normalizeArgv(raw);
+  parseArgvJsonc(src);
   const value = JSON.stringify(locale);
   const found = findTopLevelLocaleValue(src);
   if (found) return `${src.slice(0, found.start)}${value}${src.slice(found.end)}`;
 
   const open = src.indexOf('{');
   const close = src.lastIndexOf('}');
-  if (open === -1 || close === -1 || close < open) return `{
-\t"locale": ${value}
-}`;
+  if (open === -1 || close === -1 || close < open) throw new Error('Cursor argv.json 顶层必须是 JSON 对象');
 
   const before = src.slice(0, open + 1);
   const body = src.slice(open + 1, close);
@@ -200,4 +200,26 @@ function setLocaleInArgv(raw, locale) {
     : `${before}${prefix}\n${after}`;
 }
 
-module.exports = { setLocaleInArgv, parseArgvJsonc };
+function getLocaleState(raw) {
+  const parsed = parseArgvJsonc(raw);
+  const present = Object.prototype.hasOwnProperty.call(parsed, 'locale');
+  return { present, value: present ? parsed.locale : undefined };
+}
+
+function removeLocaleFromArgv(raw) {
+  const src = normalizeArgv(raw);
+  parseArgvJsonc(src);
+  const found = findTopLevelLocaleValue(src);
+  if (!found) return src;
+
+  const after = skipWhitespaceAndComments(src, found.end);
+  if (src[after] === ',') {
+    return `${src.slice(0, found.keyStart)}${src.slice(after + 1)}`;
+  }
+  if (found.commaBefore !== -1) {
+    return `${src.slice(0, found.commaBefore)}${src.slice(found.end)}`;
+  }
+  return `${src.slice(0, found.keyStart)}${src.slice(found.end)}`;
+}
+
+module.exports = { getLocaleState, removeLocaleFromArgv, setLocaleInArgv, parseArgvJsonc };

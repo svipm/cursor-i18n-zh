@@ -1,0 +1,68 @@
+Third-party licenses
+====================
+
+This project redistributes the following runtime dependencies in the Windows ZIP package.
+The dependency package directories are included unchanged under node_modules and retain
+their own LICENSE, NOTICE, and third-party license files.
+
+acorn 8.17.0
+------------
+Package: https://www.npmjs.com/package/acorn
+License: MIT
+License file included in package: node_modules/acorn/LICENSE
+
+Copyright (C) 2012-2022 by various contributors (see AUTHORS)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+opencc-js 1.4.0
+---------------
+Package: https://www.npmjs.com/package/opencc-js
+License: MIT AND Apache-2.0
+License files included in package:
+- node_modules/opencc-js/LICENSE
+- node_modules/opencc-js/LICENSES/Apache-2.0.txt
+- node_modules/opencc-js/THIRD_PARTY_LICENSES.md
+
+MIT License
+
+Copyright (c) 2020-2021 The nk2028 Project
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+opencc-js incorporates dictionary data generated from opencc-data, licensed
+under Apache License, Version 2.0. The full Apache-2.0 text is redistributed
+inside node_modules/opencc-js/LICENSES/Apache-2.0.txt and referenced by
+node_modules/opencc-js/THIRD_PARTY_LICENSES.md.

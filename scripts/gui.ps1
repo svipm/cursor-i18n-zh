@@ -12,10 +12,6 @@ function Quote-Arg([string]$Value) {
   return '"' + ($Value -replace '"', '\"') + '"'
 }
 
-function Stop-Cursor {
-  Start-Process -FilePath 'taskkill.exe' -ArgumentList '/IM Cursor.exe /F /T' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
-}
-
 function Invoke-Cli([string[]]$Args) {
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = 'node.exe'
@@ -30,9 +26,13 @@ function Invoke-Cli([string[]]$Args) {
   $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
 
   $process = [System.Diagnostics.Process]::Start($psi)
-  $stdout = $process.StandardOutput.ReadToEnd()
-  $stderr = $process.StandardError.ReadToEnd()
-  $process.WaitForExit()
+  $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+  $stderrTask = $process.StandardError.ReadToEndAsync()
+  while (!$process.WaitForExit(100)) {
+    [System.Windows.Forms.Application]::DoEvents()
+  }
+  $stdout = $stdoutTask.GetAwaiter().GetResult()
+  $stderr = $stderrTask.GetAwaiter().GetResult()
   return [PSCustomObject]@{ Code = $process.ExitCode; Output = ($stdout + $stderr) }
 }
 
@@ -189,13 +189,11 @@ $installButton.Add_Click({
   $answer = [System.Windows.Forms.MessageBox]::Show('即将关闭 Cursor, 安装官方中文语言包并应用汉化补丁. 是否继续?', '确认安装', 'YesNo', 'Question')
   if ($answer -ne 'Yes') { return }
   Run-Action '一键安装' {
-    Stop-Cursor
     $locale = Get-LocaleArg
-    foreach ($args in @(@('check', '--locale', $locale), @('lang', '--locale', $locale), @('apply', '--locale', $locale))) {
-      $result = Invoke-Cli $args
-      Add-Log $result.Output.TrimEnd()
-      if ($result.Code -ne 0) { throw "命令失败: node src/cli.js $($args -join ' ')" }
-    }
+    $args = @('install', '--locale', $locale)
+    $result = Invoke-Cli $args
+    Add-Log $result.Output.TrimEnd()
+    if ($result.Code -ne 0) { throw "命令失败: node src/cli.js $($args -join ' ')" }
   }
 })
 $restoreButton.Add_Click({
@@ -203,7 +201,6 @@ $restoreButton.Add_Click({
   $answer = [System.Windows.Forms.MessageBox]::Show('即将关闭 Cursor, 并使用本项目备份恢复原版文件. 是否继续?', '确认恢复', 'YesNo', 'Question')
   if ($answer -ne 'Yes') { return }
   Run-Action '一键恢复' {
-    Stop-Cursor
     $result = Invoke-Cli @('restore')
     Add-Log $result.Output.TrimEnd()
     if ($result.Code -ne 0) { throw '恢复失败' }

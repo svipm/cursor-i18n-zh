@@ -67,28 +67,16 @@ async function selectLocale() {
   }
 }
 
-function stopCursor() {
-  if (process.platform !== 'win32') return;
-  cp.spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/F', '/T'], {
-    stdio: 'ignore',
-    windowsHide: true,
-  });
-}
-
 async function install() {
   const locale = await selectLocale();
   if (!locale) return;
   if (!(await confirm('即将关闭 Cursor 并应用汉化补丁.'))) return;
-  stopCursor();
-  runNode(['check', '--locale', locale]);
-  runNode(['lang', '--locale', locale]);
-  runNode(['apply', '--locale', locale]);
+  runNode(['install', '--locale', locale]);
   console.log('\n完成. 重新打开 Cursor 后生效.');
 }
 
 async function restore() {
   if (!(await confirm('即将关闭 Cursor 并恢复为备份原文件.'))) return;
-  stopCursor();
   runNode(['restore']);
   console.log('\n完成. 重新打开 Cursor 后生效.');
 }

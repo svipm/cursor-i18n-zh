@@ -13,12 +13,14 @@
   },
   "scripts": {
     "apply": "node src/cli.js apply",
+    "patch-install": "node src/cli.js install",
     "restore": "node src/cli.js restore",
     "status": "node src/cli.js status",
     "locate": "node src/cli.js locate",
     "scan": "node src/cli.js scan",
     "lang": "node src/cli.js lang",
     "check": "node src/cli.js check",
+    "dict-check": "node src/cli.js dict-check",
     "helper": "node scripts/helper.js",
     "ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gui.ps1",
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
@@ -26,5 +28,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "acorn": "8.17.0",
+    "opencc-js": "1.4.0"
   }
 }

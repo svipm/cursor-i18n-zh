@@ -16,6 +16,7 @@ test('loads code and nls dictionaries and reports invalid entries', () => {
     'New Agent': '新建智能体',
     'Bad Quote': '坏"译文',
     'Bad Ctx': { zh: '坏上下文', ctx: ['bad'] },
+    'Wrong Ctx Type': { zh: '错误类型', ctx: 'lit' },
   }));
   fs.writeFileSync(path.join(dir, 'nls.json'), JSON.stringify({
     'module#key': '译文',
@@ -25,7 +26,8 @@ test('loads code and nls dictionaries and reports invalid entries', () => {
   assert.equal(dicts.code.size, 1);
   assert.equal(dicts.code.get('New Agent').zh, '新建智能体');
   assert.deepEqual(dicts.nls, { 'module#key': '译文' });
-  assert.equal(dicts.warnings.length, 2);
+  assert.equal(dicts.warnings.length, 3);
+  assert.match(dicts.warnings.join('\n'), /ctx 必须是数组/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -42,4 +44,14 @@ test('applies converter to code and nls dictionaries', () => {
   assert.equal(dicts.code.get('Settings').zh, '設定');
   assert.deepEqual(dicts.nls, { 'module#file': '檔案' });
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('rejects a dictionary whose root is not an object', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-dict-'));
+  try {
+    fs.writeFileSync(path.join(dir, '00.json'), JSON.stringify(['invalid']));
+    assert.throws(() => loadDicts(dir), /顶层必须是 JSON 对象/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
