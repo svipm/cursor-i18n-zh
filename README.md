@@ -240,8 +240,8 @@ npm run check -- --locale zh-tw
 推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 上传到发行版:
 
 ```powershell
-git tag -a v0.3.0 -m "v0.3.0"
-git push origin v0.3.0
+git tag -a v0.3.1 -m "v0.3.1"
+git push origin v0.3.1
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.
