@@ -15,6 +15,7 @@ const {
   findLanguagePack,
   nlsPlaceholdersMatch,
   validateNlsPlaceholders,
+  waitForLanguagePackRemoval,
 } = require('../src/nls');
 const { toTraditional } = require('../src/locale');
 
@@ -79,6 +80,30 @@ test('finds the newest installed language pack by semantic version', (t) => {
 
   const found = findLanguagePack(id, { homeDir });
   assert.equal(path.basename(found), `${id}-1.10.0`);
+});
+
+test('ignores language pack directories marked obsolete by Cursor', (t) => {
+  const homeDir = tempDir(t);
+  const id = 'ms-ceintl.vscode-language-pack-zh-hans';
+  const version = '1.10.0';
+  const directory = `${id}-${version}`;
+  const extensionRoot = path.join(homeDir, '.cursor', 'extensions');
+  writeJson(path.join(extensionRoot, directory, 'translations', 'main.i18n.json'), { contents: {} });
+  writeJson(path.join(extensionRoot, '.obsolete'), { [directory]: true });
+
+  assert.equal(findLanguagePack(id, { homeDir }), null);
+});
+
+test('waits for Cursor language pack logical removal to become visible', () => {
+  let checks = 0;
+  const removed = waitForLanguagePackRemoval('example.language-pack', {
+    attempts: 4,
+    intervalMs: 0,
+    lookup: () => (++checks < 3 ? 'installed-pack' : null),
+  });
+
+  assert.equal(removed, true);
+  assert.equal(checks, 3);
 });
 
 test('validates NLS placeholders as an order-independent multiset', () => {

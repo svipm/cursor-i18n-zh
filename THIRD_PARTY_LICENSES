@@ -1,9 +1,40 @@
 Third-party licenses
 ====================
 
-This project redistributes the following runtime dependencies in the Windows ZIP package.
-The dependency package directories are included unchanged under node_modules and retain
-their own LICENSE, NOTICE, and third-party license files.
+This project redistributes third-party runtime components in the Windows CLI package,
+the desktop portable package, and the compiled desktop executable. Dependency versions
+are fixed by package-lock.json and desktop-sample/src-tauri/Cargo.lock.
+
+Claude Desktop translation memory
+---------------------------------
+Source: https://github.com/GMYXDS/claude-desktop-zh-simple
+Embedded snapshot: 20260711180535, 19276 English-to-Simplified-Chinese mappings
+License: Apache License 2.0
+Source notice: desktop-sample/resources/claude/SOURCE.md
+Full license: desktop-sample/resources/claude/APACHE-2.0.txt
+
+The translation memory is embedded in the desktop executable and is used only to map
+JSON string values in three Claude Desktop en-US.json resource files. The project does
+not redistribute Claude Desktop, Claude.exe, app.asar, Anthropic assets, or account data.
+
+Desktop runtime direct dependencies
+-----------------------------------
+Tauri 2: https://github.com/tauri-apps/tauri (MIT OR Apache-2.0)
+ureq 3.3.0: https://github.com/algesten/ureq (MIT OR Apache-2.0)
+rusqlite 0.40.1: https://github.com/rusqlite/rusqlite (MIT)
+Serde and serde_json: https://github.com/serde-rs/serde (MIT OR Apache-2.0)
+sha2 0.10: https://github.com/RustCrypto/hashes (MIT OR Apache-2.0)
+base64 0.22: https://github.com/marshallpierce/rust-base64 (MIT OR Apache-2.0)
+
+The complete resolved Rust dependency graph and exact versions are recorded in
+desktop-sample/src-tauri/Cargo.lock. The Windows WebView2 runtime is supplied by the
+operating system and is not redistributed by this project.
+
+Windows CLI package dependencies
+--------------------------------
+
+The dependency package directories below are included unchanged under node_modules and
+retain their own LICENSE, NOTICE, and third-party license files.
 
 acorn 8.17.0
 ------------

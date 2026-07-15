@@ -153,6 +153,24 @@ function validateBackupFiles(bdir, relPaths, options = {}) {
   return issues;
 }
 
+// 安装门禁使用: 当前版本实际存在的每个目标都必须进入备份并通过元数据校验.
+function validateCompleteBackup(appDir, relPaths, bdir, product, options = {}) {
+  const issues = validateBackupFiles(bdir, relPaths, {
+    product,
+    translations: options.translations || [],
+  });
+  const { meta } = inspectBackupMetadata(bdir, product);
+
+  for (const rel of relPaths) {
+    if (!fs.existsSync(path.join(appDir, rel))) continue;
+    const fileExists = backupExists(bdir, rel);
+    const recorded = Boolean(meta && meta.files && meta.files[rel]);
+    if (!fileExists && !recorded) issues.push({ rel, reason: 'required-backup-missing' });
+  }
+
+  return issues;
+}
+
 function formatIssue(issue) {
   const rel = issue.rel ? `${issue.rel}: ` : '';
   switch (issue.reason) {
@@ -170,6 +188,8 @@ function formatIssue(issue) {
       return `- ${rel}文件存在, 但 meta.json 中没有对应记录.`;
     case 'backup-file-missing':
       return `- ${rel}meta.json 有记录, 但备份文件缺失.`;
+    case 'required-backup-missing':
+      return `- ${rel}当前版本存在该文件, 但完整备份中缺失.`;
     case 'backup-size':
       return `- ${rel}文件大小不符 (期望 ${issue.expected}, 实际 ${issue.actual}).`;
     case 'backup-checksum':
@@ -336,6 +356,7 @@ module.exports = {
   listBackupFiles,
   validateBackupSources,
   validateBackupFiles,
+  validateCompleteBackup,
   validateBackupMetadata,
   formatBackupSourceIssues,
   formatBackupFileIssues,

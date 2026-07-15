@@ -4,13 +4,13 @@
 [![release](https://img.shields.io/github/v/release/svipm/cursor-i18n-zh?display_name=tag)](https://github.com/svipm/cursor-i18n-zh/releases)
 [![license](https://img.shields.io/github/license/svipm/cursor-i18n-zh)](LICENSE)
 
-Cursor Windows 桌面端中文汉化补丁工具. 支持简体中文和繁體中文, 支持自动定位 Cursor 安装目录, 一键安装, 一键恢复, 安全预检和 GitHub Actions 自动打包发布.
+Windows 桌面软件汉化工作台. `v0.3.6` 首期支持 Cursor 和 Claude Desktop, 提供软件检测, 强制备份, SHA256 校验, 汉化安装, 原版恢复, Cursor 用量监控和可选更新检查.
 
-本项目不是 Cursor 官方项目. 它会修改本机 Cursor 安装目录中的前端资源文件, 首次安装会按 Cursor 版本自动备份原文件, 可通过工具恢复默认.
+本项目是第三方开源工具, 不是 Cursor 或 Anthropic 官方项目. 汉化会修改本机应用资源文件, 安装前必须创建并校验当前版本原始备份.
 
 ## 使用声明
 
-运行图形界面或终端菜单前, 工具会先展示声明和风险条款. 用户必须完整输入下面这句话, 才能继续使用:
+桌面 GUI 首次启动时必须勾选同意软件声明和隐私说明, 同意前不会扫描本机应用, 读取 Cursor 用量或检查更新. 终端菜单仍要求完整输入下面这句话:
 
 ```text
 我已仔细阅读上述规则并同意继续使用
@@ -19,32 +19,103 @@ Cursor Windows 桌面端中文汉化补丁工具. 支持简体中文和繁體中
 声明要点:
 
 - 本软件仅供学习, 研究和个人本地化测试使用.
-- 本软件不是 Cursor 官方项目, 与 Cursor 官方无从属或授权关系.
+- 本软件不是 Cursor 或 Anthropic 官方项目, 与两家公司均无从属或授权关系.
 - 使用前请确认你有权在自己的电脑上修改本机软件文件.
-- 安装汉化会修改本机 Cursor 安装目录中的前端资源文件.
-- 安装和恢复会尝试关闭 `Cursor.exe`, 请提前保存未完成工作.
-- Cursor 升级后可能需要重新安装汉化, 也可能出现部分英文残留.
-- 本软件不收集个人数据, 不上传文件, 不下载或执行远程脚本.
+- 安装汉化会修改 Cursor 或 Claude Desktop 的本地资源文件.
+- 安装, 备份和恢复会自动关闭目标应用, 请提前保存未完成工作.
+- 目标应用升级后可能需要重新安装汉化, 也可能出现部分英文残留.
+- 汉化功能不收集或上传个人文件. GUI 的 Cursor 用量监控会只读本机登录状态, 并仅向 Cursor 官方接口发送当前会话凭据以查询账户用量; 凭据不会返回前端, 不写日志, 不写入工作台文件.
 - 因使用本软件造成的兼容性问题, 文件损坏或其他风险, 由使用者自行承担.
 
 ## 快速开始
 
-推荐下载发行版压缩包:
+打开最新发行版:
 
 ```text
 https://github.com/svipm/cursor-i18n-zh/releases/latest
 ```
 
-使用步骤:
+桌面 GUI 推荐步骤:
 
 1. 安装 Node.js 18 或更高版本.
-2. 下载 `cursor-i18n-zh-windows.zip`.
+2. 下载 `汉化工作台-v0.3.6-windows.zip`.
 3. 解压到任意目录.
-4. 双击根目录的 `Cursor汉化助手.cmd` 打开终端菜单.
-5. 阅读声明, 完整输入同意文字.
-6. 选择 `简体中文` 或 `繁體中文`.
-7. 点击或选择 `一键安装`.
-8. 重新打开 Cursor.
+4. 双击 `汉化工作台-v0.3.6.exe`.
+5. 阅读并同意首次启动声明和隐私说明.
+6. 在“备份”页为目标应用创建并校验当前版本备份.
+7. 在“软件中心”选择应用并安装汉化.
+
+只使用 Claude Desktop 汉化时不需要 Node.js. Cursor 汉化依赖便携包中的 `src`, `dict`, `node_modules` 和本机 Node.js 18+, 因此不建议只下载单独 EXE 后移出便携包运行.
+
+## 桌面 GUI
+
+仓库中的 `desktop-sample` 使用 Tauri 2, 原生 HTML/CSS/JavaScript 和 Rust 实现, 首期支持:
+
+- Cursor: 复用本项目现有 CLI 引擎, 支持简体中文, 繁體中文, 安全预检, 安装和恢复.
+- Claude Desktop: 只修改 `app/resources` 下 3 个 `en-US.json`, 不修改 `app.asar`, `Claude.exe` 或客户端配置.
+- 统一的软件检测, 目标语言选择, 实时进度, 运行日志, 独立备份选项卡和恢复入口.
+- Cursor 和 Claude Desktop 安装汉化前必须先创建并校验当前版本完整备份, 前端和 Rust 后端都会执行门禁.
+- 备份历史会显示创建时间, 对应软件版本, 文件数量和完整性状态; 当前版本且校验通过的记录支持一键恢复原版.
+- Cursor 用量监控会显示套餐, 计费周期, 总用量, 剩余用量, 请求数, Token 数和模型明细.
+- Claude Desktop 的 19276 条简体中文翻译记忆库内嵌在 EXE 中, 来源和许可见 `desktop-sample/resources/claude`.
+- 首次启动必须阅读并同意软件声明和隐私说明, 同意前不会扫描本机软件或发起联网检查.
+- “关于”作为独立页面显示 GitHub 头像, 项目地址, 可选更新状态和完整声明入口.
+- 新版本不按固定版本号白名单判断. 工作台会自动定位最新安装, 按资源结构识别入口文件并显示兼容状态.
+
+桌面 GUI 从 `v0.3.6` 起作为正式 Release 产物发布. 本地构建和运行条件见 `desktop-sample/README.md`, 完整版本记录见 `CHANGELOG.md`.
+
+## 新版本自动兼容
+
+- Cursor: 自动读取当前 `product.json` 版本, 扫描已知入口和新增的 `out/vs/workbench/workbench.*.js` 大型入口包, 不依赖固定 Cursor 版本号.
+- Claude Desktop: 自动选择系统当前注册的最新安装版本, 校验 3 个目标 JSON 的存在性, JSON 结构和可翻译字符串, 不回退修改旧版本目录.
+- 版本升级后必须为新版本重新创建独立备份, 历史版本备份禁止恢复到当前版本.
+- 安装前始终执行无写入预检. Cursor 会生成完整补丁计划并做 JavaScript 语法校验; Claude 会统计翻译命中并验证生成 JSON.
+- 如果上游移动资源, 改变 JSON 结构或不再存在可补丁入口, 界面会显示“结构待适配”并停止安装, 不会盲目写入.
+
+自动兼容可以覆盖资源结构保持一致的大多数新版本, 但无法承诺上游任意架构重写后仍无需更新词典或适配器.
+
+## 发布产物
+
+- `汉化工作台-v0.3.6-windows.zip`: 推荐下载. 包含桌面 EXE, Cursor 引擎, 词典, Node.js 运行依赖, README 和第三方许可证.
+- `汉化工作台-v0.3.6.exe`: 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `cursor-i18n-zh-windows.zip`: 保留的 Cursor 终端版和传统入口.
+- `SHA256SUMS.txt`: 上述发布文件的 SHA256 校验值.
+
+## v0.3.6 更新说明
+
+- 修复 Claude Desktop 备份已经成功并通过校验后, 前端因引用未定义变量而误报失败的问题.
+- GitHub 更新检查和 Cursor 用量接口改用 Windows 系统受信任证书链及系统代理, 保持完整 TLS 证书校验.
+- “关于”改为独立页面, 按需加载 GitHub 头像, 不再与主工作区纵向混排.
+- 新增首次启动软件声明和隐私说明. 用户明确同意前, 不执行应用扫描、用量读取或版本检查.
+- 关于页新增完整声明与隐私说明的重新查看入口.
+
+## v0.3.5 更新说明
+
+- Cursor 安装、恢复和备份操作会自动强制结束完整进程树并等待退出, 无需手动关闭残留窗口或子进程.
+- GUI 的安装和恢复成功状态统一改为对应按钮显示“完成”.
+- 新增“关于”选项卡, 展示项目 GitHub、版本、图标和安全声明.
+- 启动时后台读取 GitHub 最新正式发行版, 仅提示可选更新, 禁止自动下载、静默安装和强制更新.
+
+## v0.3.4 更新说明
+
+- GUI 新增 Node.js 18+ 可视化检测, 显示版本、程序路径和不兼容原因.
+- EXE 本身及 Claude Desktop 汉化不依赖 Node.js, 只有 Cursor 适配器在 Node.js 未就绪时禁用.
+- 重新扫描软件时同步刷新 Node.js 运行环境.
+
+## v0.3.3 更新说明
+
+- 修复 Cursor 设置页大量已有词典文案未在 UI 属性上下文中生效的问题.
+- 扩充 Cursor 设置导航和用量页词典, 并保持简体、繁体同步转换.
+- 将 Cursor 原生“套餐和用量”组件嵌入账号信息区域, 不向 Cursor 注入额外登录令牌或第三方请求.
+- GUI 安装成功后的主按钮改为“完成”, 软件卡片同步显示“汉化已完成”.
+
+## v0.3.2 更新说明
+
+- 新增 Cursor 用量监控界面, 显示套餐用量, 计费周期, 请求数, Token 数和模型明细.
+- 新增统一备份历史列表, 显示备份时间, 软件版本, 文件数量和 SHA256 完整性状态.
+- 新增备份列表一键恢复, 仅允许当前软件版本且完整性校验通过的备份执行恢复.
+- 修复 Cursor CLI 已成功卸载中文语言包, 但扩展目录延迟清理导致恢复原版误报失败的问题.
+- 新增 Claude Desktop 轻量汉化适配器, 只修改 3 个 `en-US.json` 并强制执行安装前完整备份门禁.
 
 恢复原版:
 
@@ -76,15 +147,15 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 - `scripts\restore.cmd`: 终端恢复入口, 会进入声明流程.
 - `scripts\status.cmd`: 查看当前 Cursor 路径, 备份, 文件修改状态和语言包状态.
 
-## 为什么不是单个 exe
+## 为什么同时提供 EXE 和便携包
 
-当前发行版是一个 zip, 解压后用根目录 `.cmd` 作为入口. 项目没有封装成不可审计的单个 exe, 原因是:
+桌面 GUI 本身编译为单个 EXE, 但 Cursor 适配器继续复用仓库中经过测试的 Node.js 引擎. 推荐使用便携包的原因是:
 
-- 词典, 源码和脚本保留在包内, 用户可以直接检查会修改哪些内容.
-- `README.md`, `dict`, `src`, `scripts` 都随包发布, 安全边界更透明.
-- 备份和恢复逻辑依赖这些可审计脚本, 出问题时更容易定位和修复.
+- Cursor 的词典, 源码和事务化备份逻辑可以直接审计.
+- `src`, `dict`, `node_modules`, README 和许可证与 EXE 一起分发, 不需要联网下载脚本.
+- Claude Desktop 翻译记忆库已内嵌在 EXE 中, 可独立执行预检, 备份, 安装和恢复.
 
-如果只想给普通用户一个最简单入口, 让对方双击根目录的 `Cursor汉化助手.cmd` 即可.
+终端用户仍可下载 `cursor-i18n-zh-windows.zip`, 双击根目录的 `Cursor汉化助手.cmd`.
 
 ## 命令行
 
@@ -180,7 +251,8 @@ npm run locate -- --verbose
 项目安全边界:
 
 - 不下载或执行远程脚本.
-- 不收集, 读取或上传个人数据.
+- 汉化引擎不读取或上传无关个人数据.
+- GUI 用量监控只读 `%APPDATA%\Cursor\User\globalStorage\state.vscdb` 中的 Cursor 登录状态, 凭据仅在 Rust 内存中用于请求 Cursor 自有用量接口, 不返回 JavaScript, 不写日志, 不落盘.
 - 不修改无关目录.
 - 不绕过 Cursor 登录, 订阅, 授权或网络服务.
 - 所有替换词条来自 `dict/*.json`, 替换逻辑在 `src/engine.js` 和 `src/nls.js` 中, 可直接审计.
@@ -234,22 +306,42 @@ npm run check -- --locale zh-tw
 - `npm test`
 - `npm run dict-check`
 - `scripts/package.ps1`
+- `cargo test --locked` 和 `cargo build --release --locked`
+- `scripts/package-desktop.ps1`
 - 解压发行包并运行 CLI 帮助命令做冒烟测试
-- 上传 `cursor-i18n-zh-windows.zip` artifact
+- 上传终端 ZIP, 桌面 EXE, 桌面便携包和 SHA256 校验文件
 
-推送 `v*` 标签时会自动创建 GitHub Release, 并把 zip 上传到发行版:
+推送 `v*` 标签时会自动创建 GitHub Release, 并上传终端 ZIP, 桌面 EXE, 桌面便携包和 SHA256 校验文件:
 
 ```powershell
-git tag -a v0.3.1 -m "v0.3.1"
-git push origin v0.3.1
+git tag -a v0.3.6 -m "v0.3.6"
+git push origin v0.3.6
 ```
 
 只 push 到 `main` 不会生成发行版页面. 需要推送版本标签, Release 才会出现.
 
-## 鸣谢与友链
+## 资源来源, 参考项目与许可证
 
-- LINUX DO: <https://linux.do>
-  感谢 LINUX DO 社区的支持与讨论.
+实际内嵌或随包分发的第三方资源:
+
+- [GMYXDS/claude-desktop-zh-simple](https://github.com/GMYXDS/claude-desktop-zh-simple): Claude Desktop 简体中文翻译记忆库的来源. 本项目固定内嵌版本 `20260711180535`, 共 19276 条映射, 只用于替换 3 个 `en-US.json` 的字符串值. 上游采用 Apache-2.0, 原始来源说明和完整许可证保存在 `desktop-sample/resources/claude/SOURCE.md` 与 `desktop-sample/resources/claude/APACHE-2.0.txt`.
+- [Acorn](https://github.com/acornjs/acorn): JavaScript 语法分析运行时, MIT.
+- [OpenCC-JS](https://github.com/nk2028/opencc-js): 简体和繁体中文转换运行时, MIT 与 Apache-2.0. 其 OpenCC 字典数据遵守 Apache-2.0.
+- [Tauri](https://github.com/tauri-apps/tauri): 桌面 GUI 框架, MIT 或 Apache-2.0.
+- [ureq](https://github.com/algesten/ureq), [rusqlite](https://github.com/rusqlite/rusqlite), [Serde](https://github.com/serde-rs/serde), [RustCrypto hashes](https://github.com/RustCrypto/hashes): 桌面后端使用的 Rust 依赖. 具体版本由 `desktop-sample/src-tauri/Cargo.lock` 固定.
+- Microsoft 官方中文语言包 `ms-ceintl.vscode-language-pack-zh-hans` 和 `ms-ceintl.vscode-language-pack-zh-hant`: 仅通过 Cursor CLI 按需安装或读取, 本仓库和 Release 不重新分发语言包内容.
+
+仅用于实现调研和设计参考, 未复制其代码, 图标, 翻译文件或发行资源:
+
+- [javaht/claude-desktop-zh-cn](https://github.com/javaht/claude-desktop-zh-cn): Claude Desktop 资源定位, 备份和恢复流程参考.
+- [bjrzs/Cursor_chinese](https://github.com/bjrzs/Cursor_chinese): Cursor 本机登录状态和用量查询思路参考.
+- [Stack-Cairn/LiveAgent](https://github.com/Stack-Cairn/LiveAgent) 与 [desktop-cc-gui](https://github.com/zhukunpenglinyutong/desktop-cc-gui): 桌面 GUI 信息架构和交互形式调研参考, 两者均采用 MIT.
+
+完整第三方说明见 `THIRD_PARTY_LICENSES`. Cursor, Claude, Microsoft, Anthropic 及相关名称和商标归各自权利人所有.
+
+社区鸣谢:
+
+- LINUX DO: <https://linux.do>. 感谢社区的支持与讨论.
 
 ## 已知边界
 

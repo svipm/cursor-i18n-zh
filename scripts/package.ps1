@@ -17,6 +17,7 @@ $include = @(
   'THIRD_PARTY_LICENSES',
   'package.json',
   'package-lock.json',
+  'CHANGELOG.md',
   'README.md'
 )
 $rootLaunchers = @(

@@ -11,7 +11,8 @@ const { CODE_TARGETS, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON } = require('./config
 const { discoverTargets } = require('./discover');
 const { loadDicts } = require('./dict');
 const { applyToText } = require('./engine');
-const { buildPatchedNls, findLanguagePack } = require('./nls');
+const { embedAccountUsage } = require('./settings-usage');
+const { buildPatchedNls, findLanguagePack, waitForLanguagePackRemoval } = require('./nls');
 const {
   backupDir,
   ensureBackup,
@@ -19,6 +20,7 @@ const {
   listBackupFiles,
   validateBackupSources,
   validateBackupFiles,
+  validateCompleteBackup,
   formatBackupSourceIssues,
   formatBackupFileIssues,
 } = require('./backup');
@@ -125,14 +127,13 @@ function runCursorExtensionCommand(appDir, action, extensionId, options = {}) {
   if (r.status !== 0) throw new Error(`Cursor CLI 执行失败 (${action} ${extensionId}), exit ${r.status}`);
 }
 
-function stopCursor() {
-  if (process.platform !== 'win32') return;
-  cp.spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/F'], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 15000,
-  });
-  const check = cp.spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq Cursor.exe', '/NH', '/FO', 'CSV'], {
+function sleepSync(milliseconds) {
+  if (milliseconds <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function cursorProcessRunning(spawnSync = cp.spawnSync) {
+  const check = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq Cursor.exe', '/NH', '/FO', 'CSV'], {
     encoding: 'utf8',
     windowsHide: true,
     timeout: 10000,
@@ -140,9 +141,42 @@ function stopCursor() {
   if (check.error || check.status !== 0) {
     throw new Error(`无法确认 Cursor.exe 是否已退出: ${(check.error && check.error.message) || check.stderr || check.status}`);
   }
-  if (/"Cursor\.exe"/i.test(check.stdout || '')) {
-    throw new Error('Cursor.exe 仍在运行, 无法安全修改文件. 请手动完全退出后重试');
+  return /"Cursor\.exe"/i.test(check.stdout || '');
+}
+
+function stopCursor(options = {}) {
+  if (process.platform !== 'win32' && !options.force) return;
+  const spawnSync = options.spawnSync || cp.spawnSync;
+  const sleep = options.sleep || sleepSync;
+  const report = options.log || log;
+  const attempts = options.attempts || 4;
+  const pollsPerAttempt = options.pollsPerAttempt || 12;
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
+  let lastDetail = '';
+
+  if (!cursorProcessRunning(spawnSync)) return;
+  report('正在自动退出 Cursor 及其全部子进程...');
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const killed = spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/T', '/F'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 20000,
+    });
+    lastDetail = ((killed.stdout || '') + (killed.stderr || '')).trim();
+    if (killed.error) lastDetail = killed.error.message;
+
+    for (let poll = 0; poll < pollsPerAttempt; poll++) {
+      sleep(pollIntervalMs);
+      if (!cursorProcessRunning(spawnSync)) {
+        report('Cursor 及其全部子进程已退出.');
+        return;
+      }
+    }
+    if (attempt < attempts) report(`Cursor 仍在退出中, 正在进行第 ${attempt + 1} 次清理...`);
   }
+
+  const detail = lastDetail ? ` 最后结果: ${lastDetail}` : '';
+  throw new Error(`已自动强制结束 Cursor 进程树, 但 Cursor.exe 仍在运行. 请使用管理员身份重新启动汉化工作台后重试.${detail}`);
 }
 
 function invocationUserState(profile) {
@@ -232,15 +266,18 @@ function buildPatchPlan(ctx) {
     language: ctx.profile.name,
     appliedAt: new Date().toISOString(),
     files: {},
+    accountUsageEmbedded: [],
     misses: [],
   };
 
   for (const rel of ctx.targets) {
     const src = fs.readFileSync(sourcePath(ctx, rel), 'utf8');
-    const { text, counts, total } = applyToText(src, ctx.dicts.code);
+    const accountUsage = embedAccountUsage(src);
+    const { text, counts, total } = applyToText(accountUsage.text, ctx.dicts.code);
     syntaxCheck(text, rel);
     for (const en of counts.keys()) hit.add(en);
     report.files[rel] = total;
+    if (accountUsage.injected) report.accountUsageEmbedded.push(rel);
     codeFiles.set(rel, text);
     entries.push({ target: path.join(ctx.appDir, rel), data: text });
   }
@@ -279,6 +316,9 @@ function logPatchPlan(ctx, plan, prefix) {
   for (const rel of ctx.targets) {
     log(`${prefix}: ${rel} (替换 ${plan.report.files[rel]} 处)`);
   }
+  if (plan.report.accountUsageEmbedded.length) {
+    log(`Cursor 账号页用量: 已嵌入 ${plan.report.accountUsageEmbedded.length} 个工作台入口包`);
+  }
   if (!plan.nls) {
     log(`[nls 跳过] 当前 Cursor 版本无 ${NLS_KEYS} 或 ${NLS_MESSAGES}`);
   } else {
@@ -305,6 +345,10 @@ function ensurePatchBackup(ctx) {
   if (issues.length) throw new Error(formatBackupSourceIssues(issues, ctx.product.version));
   const warns = ensureBackup(ctx.appDir, ctx.backupRels, ctx.bdir, ctx.product);
   for (const w of warns) log(`[备份警告] ${w}`);
+  const backupIssues = validateCompleteBackup(ctx.appDir, ctx.backupRels, ctx.bdir, ctx.product, {
+    translations: ctx.guardTranslations,
+  });
+  if (backupIssues.length) throw new Error(formatBackupFileIssues(backupIssues, ctx.product.version));
   log(`备份就绪: ${path.relative(ROOT, ctx.bdir)}`);
 }
 
@@ -339,6 +383,30 @@ function cmdApply() {
   ensurePatchBackup(ctx);
   commitPatchPlan(ctx, buildPatchPlan(ctx));
   log('完成. 重新打开 Cursor 后生效.');
+}
+
+function cmdBackup() {
+  const ctx = loadPatchContext(selectedProfile());
+  preflight(ctx);
+  stopCursor();
+  ensurePatchBackup(ctx);
+  const files = listBackupFiles(ctx.bdir);
+  log(`完整备份已创建并校验: ${path.relative(ROOT, ctx.bdir)} (${files.length} 个文件)`);
+}
+
+function cmdBackupCheck() {
+  const appDir = locateApp();
+  const product = readProduct(appDir);
+  const targets = existingTargets(appDir);
+  const backupRels = [...targets, NLS_MESSAGES, NLS_KEYS, PRODUCT_JSON];
+  const bdir = backupDir(ROOT, product.version);
+  const files = listBackupFiles(bdir);
+  if (!files.length) throw new Error(`没有 Cursor ${product.version} 的完整备份`);
+  const issues = validateCompleteBackup(appDir, backupRels, bdir, product, {
+    translations: backupGuardTranslations(),
+  });
+  if (issues.length) throw new Error(formatBackupFileIssues(issues, product.version));
+  log(`备份校验通过: ${path.relative(ROOT, bdir)} (${files.length} 个文件)`);
 }
 
 function cmdInstall() {
@@ -401,7 +469,7 @@ function cmdRestore() {
       if (!packState.existed && findLanguagePack(id)) {
         try {
           runCursorExtensionCommand(appDir, '--uninstall-extension', id);
-          if (findLanguagePack(id)) {
+          if (!waitForLanguagePackRemoval(id)) {
             throw new Error(`Cursor CLI 返回成功, 但语言包仍存在: ${id}`);
           }
         } catch (error) {
@@ -506,6 +574,8 @@ function cmdLang() {
 
 const commands = {
   apply: cmdApply,
+  backup: cmdBackup,
+  'backup-check': cmdBackupCheck,
   install: cmdInstall,
   restore: cmdRestore,
   status: cmdStatus,
@@ -516,7 +586,9 @@ const commands = {
   'dict-check': cmdDictCheck,
 };
 function printUsage() {
-  log('用法: node src/cli.js <install|apply|restore|status|locate|scan|lang|check|dict-check> [--locale zh-cn|zh-tw]');
+  log('用法: node src/cli.js <backup|backup-check|install|apply|restore|status|locate|scan|lang|check|dict-check> [--locale zh-cn|zh-tw]');
+  log('  backup 创建当前 Cursor 版本的完整原始备份并校验');
+  log('  backup-check 校验当前版本备份身份, 文件数量和 SHA256');
   log('  install 一键预检, 安装语言包并事务化应用汉化');
   log('  apply   打汉化补丁 (自动备份原文件, 可重复执行)');
   log('  restore 还原为原版文件');
@@ -557,4 +629,5 @@ module.exports = {
   loadPatchContext,
   main,
   preflight,
+  stopCursor,
 };

@@ -11,6 +11,7 @@ const {
   ensureBackup,
   validateBackupSources,
   validateBackupFiles,
+  validateCompleteBackup,
   formatBackupSourceIssues,
   formatBackupFileIssues,
 } = require('../src/backup');
@@ -142,6 +143,26 @@ test('detects backup size and sha256 corruption from metadata', () => {
   });
   assert.deepEqual(new Set(issues.map((issue) => issue.reason)), new Set(['backup-size', 'backup-checksum']));
   assert.match(formatBackupFileIssues(issues, '1.0.0'), /身份或完整性校验失败/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('requires every current target to exist in a verified backup', () => {
+  const root = tmp();
+  const app = path.join(root, 'app');
+  const bdir = path.join(root, 'backup', '1.0.0');
+  const first = 'out/main.js';
+  const second = 'product.json';
+  ensureDir(path.dirname(path.join(app, first)));
+  fs.writeFileSync(path.join(app, first), 'original');
+  fs.writeFileSync(path.join(app, second), '{}');
+  const product = { version: '1.0.0', commit: 'abc123', checksums: {} };
+  ensureBackup(app, [first], bdir, product);
+
+  const issues = validateCompleteBackup(app, [first, second], bdir, product);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].rel, second);
+  assert.equal(issues[0].reason, 'required-backup-missing');
+  assert.match(formatBackupFileIssues(issues, '1.0.0'), /完整备份中缺失/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

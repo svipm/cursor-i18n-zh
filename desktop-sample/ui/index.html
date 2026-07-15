@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>汉化工作台</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">译</div>
+          <div>
+            <strong>汉化工作台</strong>
+            <span>Localization Hub</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="主导航">
+          <button class="nav-item active" data-section="overview">
+            <span class="nav-icon">⌂</span><span>概览</span>
+          </button>
+          <button class="nav-item" data-section="apps">
+            <span class="nav-icon">▦</span><span>软件中心</span>
+            <span class="nav-badge">2</span>
+          </button>
+          <button class="nav-item" data-section="backups">
+            <span class="nav-icon">▤</span><span>备份</span>
+            <span id="backupNavBadge" class="nav-badge">0/2</span>
+          </button>
+          <button class="nav-item" data-section="usage">
+            <span class="nav-icon">◉</span><span>用量监控</span>
+          </button>
+          <button class="nav-item" data-section="logs">
+            <span class="nav-icon">◷</span><span>运行日志</span>
+          </button>
+          <button class="nav-item" data-section="about">
+            <span class="nav-icon">ⓘ</span><span>关于</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div id="permissionCard" class="permission-card">
+            <span id="permissionDot" class="permission-dot"></span>
+            <div><strong id="permissionTitle">正在检查权限</strong><small id="permissionText">请稍候...</small></div>
+          </div>
+          <div class="version-row">
+            <span>双应用工作台</span><span>v0.3.6</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="titlebar" data-tauri-drag-region>
+          <div class="breadcrumb" data-tauri-drag-region>
+            <span class="status-dot"></span>
+            <span id="headerStatus">服务运行正常</span>
+          </div>
+          <div class="window-controls">
+            <button id="minimizeButton" aria-label="最小化">—</button>
+            <button id="maximizeButton" aria-label="最大化">□</button>
+            <button id="closeButton" class="close" aria-label="关闭">×</button>
+          </div>
+        </header>
+
+        <section class="content">
+          <div id="overview" class="hero-row scroll-anchor">
+            <div>
+              <p class="eyebrow">LOCALIZATION WORKBENCH</p>
+              <h1>管理你的汉化体验</h1>
+              <p class="subtitle">检测本机软件, 预检补丁, 安全备份, 随时恢复原版.</p>
+            </div>
+            <button id="scanButton" class="secondary-button">
+              <span id="scanIcon">↻</span>重新扫描
+            </button>
+          </div>
+
+          <div class="summary-grid">
+            <article class="summary-card accent-purple">
+              <div class="summary-icon">▣</div>
+              <div><span>已检测软件</span><strong id="detectedCount">--</strong></div>
+              <small>台</small>
+            </article>
+            <article class="summary-card accent-green">
+              <div class="summary-icon">✓</div>
+              <div><span>已汉化</span><strong id="localizedCount">--</strong></div>
+              <small>台</small>
+            </article>
+            <article class="summary-card accent-blue">
+              <div class="summary-icon">文</div>
+              <div><span>备份就绪</span><strong id="adapterCount">0</strong></div>
+              <small>台</small>
+            </article>
+          </div>
+
+          <article id="nodeRuntimeCard" class="runtime-card checking" aria-live="polite">
+            <div class="runtime-icon">JS</div>
+            <div class="runtime-content">
+              <div class="runtime-title-row">
+                <div><h3>Node.js 运行环境</h3><span>仅 Cursor 汉化功能需要</span></div>
+                <span id="nodeRuntimeState" class="pill neutral">正在检测</span>
+              </div>
+              <p id="nodeRuntimeMessage">正在检查 Node.js 安装状态和版本...</p>
+              <div class="runtime-facts">
+                <span>检测版本<strong id="nodeRuntimeVersion">--</strong></span>
+                <span>最低要求<strong id="nodeRuntimeRequired">Node.js 18+</strong></span>
+                <span>程序路径<strong id="nodeRuntimePath">正在检测</strong></span>
+              </div>
+            </div>
+            <button id="nodeRuntimeRefreshButton" class="secondary-button"><span>↻</span>重新检测</button>
+          </article>
+
+          <div id="apps" class="section-heading scroll-anchor">
+            <div>
+              <h2>软件中心</h2>
+              <p>首期支持 Cursor 和 Claude Desktop.</p>
+            </div>
+            <span id="engineHint" class="engine-hint">正在检查适配器环境</span>
+          </div>
+
+          <div id="appGrid" class="app-grid two-apps">
+            <article class="app-card featured" data-app="cursor">
+              <div class="app-card-top">
+                <div class="app-logo cursor-logo">C</div>
+                <span class="pill neutral" id="cursorState">正在检测</span>
+              </div>
+              <h3>Cursor</h3>
+              <p class="app-description">AI 代码编辑器中文适配器</p>
+              <div class="app-meta stacked-meta">
+                <span id="cursorVersion">版本: 检测中</span>
+                <span id="cursorInstallState">正在定位 resources/app...</span>
+                <span class="adapter-state">适配器 v0.3.6</span>
+                <span id="cursorCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
+              </div>
+              <button class="primary-button configure-button" data-open-app="cursor">配置汉化 <span>→</span></button>
+            </article>
+
+            <article class="app-card claude-card" data-app="claude">
+              <div class="app-card-top">
+                <div class="app-logo claude-logo">AI</div>
+                <span class="pill neutral" id="claudeState">正在检测</span>
+              </div>
+              <h3>Claude Desktop</h3>
+              <p class="app-description">仅替换 3 个本地英文资源 JSON</p>
+              <div class="app-meta stacked-meta">
+                <span id="claudeVersion">版本: 检测中</span>
+                <span id="claudeInstallState">正在定位 WindowsApps 资源...</span>
+                <span class="adapter-state">适配器 v0.1.0</span>
+                <span id="claudeCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
+              </div>
+              <button class="primary-button configure-button" data-open-app="claude">配置汉化 <span>→</span></button>
+            </article>
+          </div>
+
+          <section id="usage" class="usage-section scroll-anchor">
+            <div class="section-heading usage-heading">
+              <div>
+                <h2>Cursor 用量监控</h2>
+                <p>只读本机 Cursor 登录状态, 访问令牌仅在 Rust 后端内存中使用.</p>
+              </div>
+              <button id="refreshUsageButton" class="secondary-button"><span>↻</span>刷新用量</button>
+            </div>
+
+            <div id="usageError" class="usage-error hidden"></div>
+            <div id="usageContent" class="usage-content loading">
+              <div class="usage-card-grid">
+                <article class="usage-card plan-card">
+                  <span>当前套餐</span>
+                  <strong id="usageMembership">正在读取</strong>
+                  <small id="usageAccount">等待 Cursor 登录状态</small>
+                </article>
+                <article class="usage-card">
+                  <span>套餐用量</span>
+                  <strong id="usagePlanAmount">-- / --</strong>
+                  <small id="usageRemaining">剩余 --</small>
+                </article>
+                <article class="usage-card">
+                  <span>模型请求</span>
+                  <strong id="usageRequests">--</strong>
+                  <small id="usageTokens">Token --</small>
+                </article>
+              </div>
+
+              <article class="usage-overview-card">
+                <div class="usage-progress-heading">
+                  <div><span>本计费周期使用进度</span><small id="usageCycle">--</small></div>
+                  <strong id="usagePercent">0%</strong>
+                </div>
+                <div class="usage-meter"><div id="usageMeterBar"></div></div>
+                <div class="usage-meter-notes">
+                  <span id="usageApiPercent">API 用量 0%</span>
+                  <span id="usageRefreshedAt">尚未刷新</span>
+                </div>
+              </article>
+
+              <article class="usage-model-card">
+                <div class="usage-model-heading">
+                  <div><h3>模型明细</h3><p>按请求次数排序.</p></div>
+                  <span id="usageModelCount">0 个模型</span>
+                </div>
+                <div class="usage-model-columns" aria-hidden="true">
+                  <span>模型</span><span>请求</span><span>上限</span><span>Token</span>
+                </div>
+                <div id="usageModelList" class="usage-model-list">
+                  <div class="empty-row">正在读取用量数据...</div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section id="backups" class="backup-section scroll-anchor">
+            <div class="section-heading backup-heading">
+              <div>
+                <h2>备份</h2>
+                <p>安装汉化前必须创建并校验当前应用版本的完整原始备份.</p>
+              </div>
+              <label class="backup-consent">
+                <input id="backupConsentCheckbox" type="checkbox" />
+                <span>我已保存应用中的工作, 并同意备份时关闭目标应用.</span>
+              </label>
+            </div>
+
+            <div class="backup-grid">
+              <article class="backup-card" data-backup-app="cursor">
+                <div class="backup-card-header">
+                  <div class="app-logo cursor-logo">C</div>
+                  <div><h3>Cursor</h3><span id="cursorBackupVersion">版本: 检测中</span></div>
+                  <span id="cursorBackupState" class="pill neutral">正在校验</span>
+                </div>
+                <div class="backup-facts">
+                  <span>已记录文件<strong id="cursorBackupFiles">0</strong></span>
+                  <span>校验范围<strong>版本 + commit + SHA256</strong></span>
+                </div>
+                <p id="cursorBackupMessage" class="backup-message">正在检查当前版本备份...</p>
+                <code id="cursorBackupPath" class="backup-path">--</code>
+                <div id="cursorBackupProgress" class="backup-progress hidden">
+                  <div><span id="cursorBackupProgressText">准备中...</span><strong id="cursorBackupProgressValue">0%</strong></div>
+                  <div class="progress-track"><div id="cursorBackupProgressBar" class="progress-bar"></div></div>
+                </div>
+                <button class="primary-button backup-action" data-backup-app="cursor" disabled>创建并校验备份</button>
+              </article>
+
+              <article class="backup-card" data-backup-app="claude">
+                <div class="backup-card-header">
+                  <div class="app-logo claude-logo">AI</div>
+                  <div><h3>Claude Desktop</h3><span id="claudeBackupVersion">版本: 检测中</span></div>
+                  <span id="claudeBackupState" class="pill neutral">正在校验</span>
+                </div>
+                <div class="backup-facts">
+                  <span>已记录文件<strong id="claudeBackupFiles">0</strong></span>
+                  <span>校验范围<strong>版本 + 大小 + SHA256</strong></span>
+                </div>
+                <p id="claudeBackupMessage" class="backup-message">正在检查当前版本备份...</p>
+                <code id="claudeBackupPath" class="backup-path">--</code>
+                <div id="claudeBackupProgress" class="backup-progress hidden">
+                  <div><span id="claudeBackupProgressText">准备中...</span><strong id="claudeBackupProgressValue">0%</strong></div>
+                  <div class="progress-track"><div id="claudeBackupProgressBar" class="progress-bar"></div></div>
+                </div>
+                <button class="primary-button backup-action" data-backup-app="claude" disabled>创建并校验备份</button>
+              </article>
+            </div>
+
+            <article class="backup-history-panel">
+              <div class="backup-history-heading">
+                <div><h3>备份历史</h3><p>完整备份会保留版本和创建时间, 仅当前兼容版本支持一键恢复.</p></div>
+                <label class="restore-consent">
+                  <input id="restoreConsentCheckbox" type="checkbox" />
+                  <span>我已保存应用中的工作, 并同意恢复时关闭目标应用.</span>
+                </label>
+              </div>
+              <div id="backupRestoreProgress" class="backup-restore-progress hidden">
+                <div><span id="backupRestoreProgressText">准备中...</span><strong id="backupRestoreProgressValue">0%</strong></div>
+                <div class="progress-track"><div id="backupRestoreProgressBar" class="progress-bar"></div></div>
+              </div>
+              <div class="backup-history-columns" aria-hidden="true">
+                <span>应用和版本</span><span>备份时间</span><span>文件</span><span>状态</span><span>操作</span>
+              </div>
+              <div id="backupHistoryList" class="backup-history-list">
+                <div class="empty-row">正在扫描备份记录...</div>
+              </div>
+            </article>
+          </section>
+
+          <section id="logs" class="activity-panel scroll-anchor">
+            <div class="activity-header">
+              <div>
+                <h2>运行日志</h2>
+                <p id="activitySubtitle">等待操作</p>
+              </div>
+              <button id="clearLogButton" class="icon-button" aria-label="清空日志">清空</button>
+            </div>
+            <div id="logArea" class="log-area tall-log" aria-live="polite">
+              <div class="log-line"><time>--:--:--</time><span class="log-info">INFO</span><p>汉化工作台已就绪.</p></div>
+            </div>
+          </section>
+
+          <section id="about" class="about-section scroll-anchor">
+            <div class="section-heading about-heading">
+              <div><h2>关于汉化工作台</h2><p>项目信息, 版本更新和使用声明.</p></div>
+              <span class="about-version-badge">v0.3.6</span>
+            </div>
+
+            <div class="about-grid">
+              <article class="about-project-card">
+                <div class="about-project-header">
+                  <div class="about-avatar-shell">
+                    <div id="githubAvatarFallback" class="brand-mark about-brand-mark">译</div>
+                    <img id="githubAvatar" class="about-avatar" data-src="https://github.com/svipm.png?size=160" alt="svipm 的 GitHub 头像" referrerpolicy="no-referrer" />
+                  </div>
+                  <div><h3>svipm / 汉化工作台</h3><p>Cursor 与 Claude Desktop 本地化管理工具</p></div>
+                </div>
+                <p class="about-description">提供版本备份, 完整性校验, 汉化安装, 原版恢复和 Cursor 用量监控. 所有本机修改流程均可审计.</p>
+                <code class="about-repository">github.com/svipm/cursor-i18n-zh</code>
+                <div class="about-actions">
+                  <button class="primary-button github-button" data-project-page="repository">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.24c-3.23.7-3.91-1.37-3.91-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.1-.75.41-1.27.74-1.56-2.58-.29-5.29-1.29-5.29-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.16 1.18A10.96 10.96 0 0 1 12 6.11c.98 0 1.96.13 2.88.39 2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.72 5.39-5.31 5.68.42.36.79 1.07.79 2.16v3.25c0 .31.21.68.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
+                    打开 GitHub
+                  </button>
+                  <button class="secondary-button" data-project-page="releases">发行版本</button>
+                </div>
+              </article>
+
+              <article id="updateStatusCard" class="about-update-card checking">
+                <div class="about-update-heading">
+                  <div class="update-icon">↻</div>
+                  <div><h3>版本更新</h3><p>启动时后台检查, 永不强制更新.</p></div>
+                  <span id="updateState" class="pill neutral">正在检查</span>
+                </div>
+                <div class="update-version-facts">
+                  <span>当前版本<strong id="updateCurrentVersion">v0.3.6</strong></span>
+                  <span>最新版本<strong id="updateLatestVersion">--</strong></span>
+                </div>
+                <p id="updateMessage" class="update-message">正在连接 GitHub 检查正式发行版...</p>
+                <div class="about-actions">
+                  <button id="checkUpdateButton" class="secondary-button"><span>↻</span>重新检查</button>
+                  <button id="viewUpdateButton" class="primary-button hidden" data-project-page="releases">查看新版本</button>
+                </div>
+              </article>
+            </div>
+
+            <article class="about-declaration-card">
+              <div class="declaration-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4.5 5.2v5.4c0 5.1 3.2 9.6 7.5 11.4 4.3-1.8 7.5-6.3 7.5-11.4V5.2L12 2Zm0 2.2 5.4 2.3v4.1c0 3.9-2.2 7.5-5.4 9.1-3.2-1.6-5.4-5.2-5.4-9.1V6.5L12 4.2Zm-1 4v5.2l4.2-2.6 1 1.6-7.2 4.4V8.2h2Z"/></svg>
+              </div>
+              <div>
+                <h3>软件声明与隐私说明</h3>
+                <ul>
+                  <li>本项目是第三方开源工具, 与 Cursor、Anthropic 及其关联公司无官方关系.</li>
+                  <li>汉化会修改本机应用资源, 安装前必须完成对应版本备份和 SHA256 校验.</li>
+                  <li>Cursor 用量监控只向 Cursor 自有接口查询数据, 登录令牌不返回前端、不写日志、不落盘.</li>
+                  <li>更新检查只读取 GitHub 正式发行版信息, 不自动下载、不静默安装、不强制更新.</li>
+                  <li>执行安装或恢复前请保存工作, 工作台会自动退出目标应用并确认进程完全结束.</li>
+                </ul>
+                <div class="about-actions">
+                  <button id="reviewConsentButton" class="secondary-button">查看完整声明与隐私说明</button>
+                </div>
+              </div>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div id="modalBackdrop" class="modal-backdrop hidden">
+      <section class="modal operation-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+          <div id="modalLogo" class="app-logo cursor-logo">C</div>
+          <div>
+            <p id="modalKicker">软件适配器</p>
+            <h2 id="modalTitle">配置汉化</h2>
+          </div>
+          <button id="modalCloseButton" class="modal-close" aria-label="关闭">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-app-info">
+            <span id="modalVersion">版本: --</span>
+            <strong id="modalState">正在检测</strong>
+          </div>
+
+          <label class="field-label">目标语言</label>
+          <div id="languageOptions" class="language-options"></div>
+
+          <div id="safetyNote" class="safety-note">
+            <span>✓</span><p id="safetyText"></p>
+          </div>
+
+          <div id="modalBackupGate" class="backup-gate">
+            <span id="modalBackupIcon">!</span>
+            <div><strong id="modalBackupTitle">必须先完成备份</strong><p id="modalBackupText">请前往备份选项卡创建并校验当前版本备份.</p></div>
+            <button id="goBackupButton" class="mini-button">前往备份</button>
+          </div>
+
+          <div id="adminNote" class="admin-note hidden">
+            <div><strong id="adminNoteTitle">Claude Desktop 安装需要管理员权限</strong><p id="adminNoteText">WindowsApps 默认受保护. 预检不需要提权, 安装和恢复需要重新启动工作台.</p></div>
+            <button id="restartAdminButton" class="mini-button">管理员重启</button>
+          </div>
+
+          <label class="consent-row">
+            <input id="consentCheckbox" type="checkbox" />
+            <span>我已保存应用中的工作, 并同意关闭目标应用和修改本机资源文件.</span>
+          </label>
+
+          <div id="progressWrap" class="progress-wrap hidden">
+            <div class="progress-label"><span id="progressText">准备中...</span><strong id="progressValue">0%</strong></div>
+            <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+          </div>
+          <p id="operationMessage" class="operation-message"></p>
+        </div>
+        <div class="modal-footer action-footer">
+          <button id="previewButton" class="secondary-button">安全预检</button>
+          <div class="footer-spacer"></div>
+          <button id="restoreButton" class="danger-button">恢复原版</button>
+          <button id="installButton" class="primary-button">安装汉化</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="firstRunBackdrop" class="first-run-backdrop hidden">
+      <section class="first-run-modal" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle" aria-describedby="firstRunSummary">
+        <header class="first-run-header">
+          <div class="first-run-mark">译</div>
+          <div>
+            <p>LOCALIZATION WORKBENCH</p>
+            <h2 id="firstRunTitle">首次使用须知</h2>
+          </div>
+          <button id="firstRunCloseButton" class="modal-close" aria-label="关闭声明" hidden>×</button>
+        </header>
+
+        <div class="first-run-body">
+          <p id="firstRunSummary" class="first-run-summary">请在使用前阅读软件声明和隐私说明. 只有明确同意后, 工作台才会开始本机检测或联网检查.</p>
+          <div class="first-run-sections">
+            <article>
+              <h3>软件声明</h3>
+              <ul>
+                <li>本项目是第三方开源本地化工具, 不是 Cursor 或 Anthropic 官方产品, 也未获得其授权或背书.</li>
+                <li>汉化会修改本机应用资源文件. 安装前必须创建当前软件版本的完整备份, 并通过文件大小和 SHA256 校验.</li>
+                <li>安装、备份和恢复可能自动结束 Cursor 或 Claude Desktop 进程. 操作前必须保存尚未完成的工作.</li>
+                <li>目标软件升级后可能需要重新汉化. 因上游资源变化造成的显示异常或兼容性风险由使用者自行承担.</li>
+              </ul>
+            </article>
+            <article>
+              <h3>隐私说明</h3>
+              <ul>
+                <li>工作台不包含遥测、行为分析或广告组件, 不上传个人文件、备份内容和操作日志.</li>
+                <li>软件检测、备份、校验和恢复均在本机执行. 备份只保存在界面显示的本地目录.</li>
+                <li>Cursor 用量监控只读本机登录状态. 令牌仅在 Rust 后端内存中使用, 只发送给 Cursor 自有接口, 不返回前端、不写日志、不落盘.</li>
+                <li>版本检查只向 GitHub 请求公开发行版信息, 不携带 Cursor 或 Claude 账号信息, 不自动下载、不静默安装、不强制更新.</li>
+                <li>GitHub 头像仅在打开关于页时按需加载. 不同意本说明可以直接退出, 工作台不会继续初始化.</li>
+              </ul>
+            </article>
+          </div>
+
+          <label id="firstRunConsentRow" class="first-run-consent">
+            <input id="firstRunConsentCheckbox" type="checkbox" />
+            <span>我已完整阅读并同意软件声明与隐私说明.</span>
+          </label>
+        </div>
+
+        <footer class="first-run-footer">
+          <button id="firstRunExitButton" class="danger-button">不同意并退出</button>
+          <div class="footer-spacer"></div>
+          <button id="firstRunAcceptButton" class="primary-button" disabled>同意并进入</button>
+        </footer>
+      </section>
+    </div>
+
+    <div id="toast" class="toast hidden"><span id="toastIcon">✓</span><p></p></div>
+    <script src="app.js"></script>
+  </body>
+</html>

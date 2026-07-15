@@ -10,7 +10,7 @@ function escRe(s) {
 function defaultCtx(en) {
   const words = en.trim().split(/\s+/).length;
   return words >= 2
-    ? ['lit', 'html-text', 'html-attr']
+    ? ['lit', 'prop', 'html-text', 'html-attr']
     : ['prop', 'html-text', 'html-attr'];
 }
 

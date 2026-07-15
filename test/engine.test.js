@@ -6,6 +6,20 @@ const vm = require('node:vm');
 
 const { applyToText } = require('../src/engine');
 
+test('default multi-word entries translate whitelisted settings properties', () => {
+  const dict = new Map([
+    ['Cursor Account', { zh: 'Cursor 账户' }],
+  ]);
+  const src = 'const row={label:"Cursor Account",value:"Cursor Account"};const direct="Cursor Account";';
+  const { text, total } = applyToText(src, dict);
+
+  assert.equal(total, 3);
+  assert.match(text, /label:"Cursor 账户"/);
+  assert.match(text, /value:"Cursor 账户"/);
+  assert.match(text, /direct="Cursor 账户"/);
+  assert.doesNotThrow(() => new vm.Script(text));
+});
+
 test('replaces whitelisted property string values and keeps valid JavaScript', () => {
   const dict = new Map([
     ['New Agent', { zh: '新建智能体', ctx: ['prop'] }],

@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Permissions used by the desktop sample window","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-close","core:window:allow-minimize","core:window:allow-toggle-maximize","core:window:allow-start-dragging"]}}

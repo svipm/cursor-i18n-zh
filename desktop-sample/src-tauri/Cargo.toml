@@ -1,0 +1,25 @@
+[package]
+name = "cursor-i18n-desktop-sample"
+version = "0.3.6"
+description = "Windows desktop localization workbench"
+authors = ["svipm"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+tauri = { version = "2", features = [] }
+ureq = { version = "3.3.0", features = ["json", "platform-verifier", "win-system-proxy"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

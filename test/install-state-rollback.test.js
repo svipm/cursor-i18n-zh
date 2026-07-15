@@ -140,6 +140,7 @@ test('restores the exact previous install state when adding a language pack fail
       listBackupFiles: () => [],
       validateBackupSources: () => [],
       validateBackupFiles: () => [],
+      validateCompleteBackup: () => [],
       formatBackupSourceIssues: () => 'unexpected backup source issue',
       formatBackupFileIssues: () => 'unexpected backup file issue',
     }));

@@ -21,6 +21,14 @@ jobs:
           node-version: '20'
           cache: npm
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-sample/src-tauri -> target
+
       - name: Install dependencies
         run: npm ci
 
@@ -32,6 +40,16 @@ jobs:
 
       - name: Package Windows helper
         run: npm run package
+
+      - name: Test desktop workbench
+        run: cargo test --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+
+      - name: Build desktop workbench
+        run: cargo build --release --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+
+      - name: Package desktop workbench
+        shell: pwsh
+        run: ./scripts/package-desktop.ps1
 
       - name: Smoke test package
         shell: pwsh
@@ -50,6 +68,15 @@ jobs:
         with:
           name: cursor-i18n-zh-windows
           path: dist/cursor-i18n-zh-windows.zip
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: localization-workbench-windows
+          path: |
+            dist/汉化工作台-v*.exe
+            dist/汉化工作台-v*-windows.zip
+            dist/SHA256SUMS.txt
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -75,8 +102,19 @@ jobs:
           name: cursor-i18n-zh-windows
           path: dist
 
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: localization-workbench-windows
+          path: dist
+
       - name: Publish GitHub Release asset
         uses: softprops/action-gh-release@v2
         with:
           body_path: .github/releases/${{ github.ref_name }}.md
-          files: dist/cursor-i18n-zh-windows.zip
+          fail_on_unmatched_files: true
+          files: |
+            dist/cursor-i18n-zh-windows.zip
+            dist/汉化工作台-v*.exe
+            dist/汉化工作台-v*-windows.zip
+            dist/SHA256SUMS.txt

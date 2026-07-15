@@ -66,13 +66,31 @@ function compareSemver(left, right) {
   return 0;
 }
 
+function readObsoleteExtensionNames(extRoot) {
+  const obsoleteFile = path.join(extRoot, '.obsolete');
+  if (!fs.existsSync(obsoleteFile)) return new Set();
+  try {
+    const value = JSON.parse(fs.readFileSync(obsoleteFile, 'utf8'));
+    const names = Array.isArray(value)
+      ? value
+      : value && typeof value === 'object'
+        ? Object.entries(value).filter(([, obsolete]) => Boolean(obsolete)).map(([name]) => name)
+        : [];
+    return new Set(names.filter((name) => typeof name === 'string').map((name) => name.toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 function findLanguagePack(languagePackId, options = {}) {
   const extRoot = path.join(options.homeDir || os.homedir(), '.cursor', 'extensions');
   if (!fs.existsSync(extRoot)) return null;
   const prefix = String(languagePackId || '').toLowerCase();
   if (!prefix) return null;
+  const obsolete = readObsoleteExtensionNames(extRoot);
   const dirs = fs.readdirSync(extRoot)
     .filter((d) => d.toLowerCase().startsWith(`${prefix}-`))
+    .filter((d) => !obsolete.has(d.toLowerCase()))
     .map((name) => ({
       name,
       version: name.slice(prefix.length + 1),
@@ -82,6 +100,21 @@ function findLanguagePack(languagePackId, options = {}) {
     .sort((a, b) => compareSemver(b.version, a.version) || a.name.localeCompare(b.name));
   if (dirs.length) return dirs[0].full;
   return null;
+}
+
+function waitForLanguagePackRemoval(languagePackId, options = {}) {
+  const requestedAttempts = Number(options.attempts);
+  const requestedInterval = Number(options.intervalMs);
+  const attempts = Math.max(1, Number.isFinite(requestedAttempts) ? requestedAttempts : 40);
+  const intervalMs = Math.max(0, Number.isFinite(requestedInterval) ? requestedInterval : 250);
+  const lookup = options.lookup || ((id) => findLanguagePack(id, options));
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (!lookup(languagePackId)) return true;
+    if (attempt + 1 < attempts && intervalMs > 0) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, intervalMs);
+    }
+  }
+  return false;
 }
 
 function loadLanguagePackMain(langPackDir) {
@@ -243,6 +276,7 @@ module.exports = {
   buildPatchedNls,
   patchNls,
   findLanguagePack,
+  waitForLanguagePackRemoval,
   loadLanguagePackMain,
   applyLanguagePack,
   resolveLanguagePack,
