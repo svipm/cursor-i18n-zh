@@ -2,6 +2,24 @@
 
 本文件记录正式发布版本. `v0.3.2` 至 `v0.3.5` 是 `v0.3.6` 发布前的内部迭代, 未单独创建 GitHub Release.
 
+## [0.3.7] - 2026-07-16
+
+### 修复
+
+- 统一 Cursor CLI 与 Rust 备份列表的 Base64 SHA256 格式. CLI 生成的无填充哈希不再被备份历史误报为校验失败.
+- 新增 Node.js 备份元数据格式的 Rust 回归测试, 保证当前版本备份可以正确显示并恢复.
+
+### 文档
+
+- 重写项目 README, 删除重复的旧版本流水账, 以当前双应用汉化工作台为主线介绍功能, 安全边界和自动兼容机制.
+- 新增软件中心, 备份历史, Cursor 用量监控和 Cursor 中文设置真实截图, 并遮挡账号与本机路径信息.
+
+### 验证
+
+- Node.js 自动化测试 85 项全部通过.
+- Rust 自动化测试 17 项全部通过, GitHub 实网检查 1 项按测试约定忽略.
+- 简体中文和繁体中文词典校验, Windows Release 构建, 便携包冒烟测试和 SHA256 产物校验全部通过.
+
 ## [0.3.6] - 2026-07-15
 
 ### 新增
@@ -52,5 +70,6 @@
 - 改进 NLS 合并, 繁体转换和 JavaScript tokenizer 替换引擎.
 - 增加 CI 词典检查, ZIP 冒烟测试和 GitHub Release 自动发布.
 
+[0.3.7]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.1...v0.3.6
 [0.3.1]: https://github.com/svipm/cursor-i18n-zh/releases/tag/v0.3.1

@@ -133,7 +133,7 @@ function browserFallbackApps() {
   return [
     {
       id: "cursor", name: "Cursor", installed: true, ready: true, path: "浏览器预览模式",
-      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.3.6",
+      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.3.7",
       backupAvailable: true, backupPath: "浏览器预览模式\\backup\\preview", backupFiles: 7,
       backupMessage: "浏览器预览样例: 7 个文件已通过完整性校验", localized: false, reason: null,
       autoCompatible: true, compatibilityMessage: "已按资源结构自动适配未来 Cursor 版本, 安装前仍会执行完整语法预检",
@@ -191,13 +191,13 @@ function browserFallbackUsage() {
 
 function browserFallbackUpdateStatus() {
   return {
-    currentVersion: "0.3.6",
-    latestVersion: "0.3.6",
+    currentVersion: "0.3.7",
+    latestVersion: "0.3.7",
     updateAvailable: false,
     currentAhead: false,
     releaseUrl: "https://github.com/svipm/cursor-i18n-zh/releases",
     publishedAt: new Date().toISOString(),
-    message: "浏览器预览样例: 当前 v0.3.6 已是最新版本",
+    message: "浏览器预览样例: 当前 v0.3.7 已是最新版本",
   };
 }
 

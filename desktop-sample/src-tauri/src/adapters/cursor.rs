@@ -2,7 +2,7 @@ use super::{
     hidden_command, ActionRequest, AppStatus, BackupRecord, LocaleOption, NodeRuntimeStatus,
     OperationResult, ProgressSink,
 };
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -12,7 +12,7 @@ use std::process::Stdio;
 use std::sync::mpsc;
 use std::thread;
 
-const ADAPTER_VERSION: &str = "0.3.6";
+const ADAPTER_VERSION: &str = "0.3.7";
 const MIN_NODE_MAJOR: u32 = 18;
 
 struct BackupDetails {
@@ -440,7 +440,7 @@ fn sha256_file_base64(path: &Path) -> Result<String, String> {
         }
         hash.update(&buffer[..read]);
     }
-    Ok(STANDARD.encode(hash.finalize()))
+    Ok(STANDARD_NO_PAD.encode(hash.finalize()))
 }
 
 fn inspect_backup(root: &Path, version: &str) -> BackupDetails {
@@ -713,6 +713,20 @@ mod tests {
             serde_json::to_vec_pretty(&meta).unwrap(),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn hashes_cursor_backups_with_node_compatible_base64() {
+        let root = sandbox();
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("original.txt");
+        fs::write(&source, b"original").unwrap();
+
+        assert_eq!(
+            sha256_file_base64(&source).unwrap(),
+            "BoLF8gdvCZw0z90VqeBjhJ7UN6SWd+b8xbQZjHZXW+U"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

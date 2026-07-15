@@ -1,6 +1,6 @@
 [package]
 name = "cursor-i18n-desktop-sample"
-version = "0.3.6"
+version = "0.3.7"
 description = "Windows desktop localization workbench"
 authors = ["svipm"]
 edition = "2021"

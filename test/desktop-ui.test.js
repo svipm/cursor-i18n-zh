@@ -133,8 +133,8 @@ test('desktop and package versions are synchronized', () => {
     path.join(root, 'desktop-sample', 'src-tauri', 'tauri.conf.json'),
     'utf8',
   ));
-  assert.equal(packageJson.version, '0.3.6');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(tauriConfig.version, packageJson.version);
-  assert.match(cargo, /^version = "0\.3\.6"$/m);
-  assert.match(html, /v0\.3\.6/);
+  assert.ok(cargo.split(/\r?\n/).includes(`version = "${packageJson.version}"`));
+  assert.ok(html.includes(`v${packageJson.version}`));
 });
