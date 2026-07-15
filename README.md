@@ -38,9 +38,9 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 桌面 GUI 推荐步骤:
 
 1. 安装 Node.js 18 或更高版本.
-2. 下载 `汉化工作台-v0.3.6-windows.zip`.
+2. 下载 `localization-workbench-v0.3.6-windows.zip`.
 3. 解压到任意目录.
-4. 双击 `汉化工作台-v0.3.6.exe`.
+4. 双击 `localization-workbench-v0.3.6.exe`.
 5. 阅读并同意首次启动声明和隐私说明.
 6. 在“备份”页为目标应用创建并校验当前版本备份.
 7. 在“软件中心”选择应用并安装汉化.
@@ -76,8 +76,8 @@ https://github.com/svipm/cursor-i18n-zh/releases/latest
 
 ## 发布产物
 
-- `汉化工作台-v0.3.6-windows.zip`: 推荐下载. 包含桌面 EXE, Cursor 引擎, 词典, Node.js 运行依赖, README 和第三方许可证.
-- `汉化工作台-v0.3.6.exe`: 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `localization-workbench-v0.3.6-windows.zip`: 推荐下载. 包含桌面 EXE, Cursor 引擎, 词典, Node.js 运行依赖, README 和第三方许可证.
+- `localization-workbench-v0.3.6.exe`: 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
 - `cursor-i18n-zh-windows.zip`: 保留的 Cursor 终端版和传统入口.
 - `SHA256SUMS.txt`: 上述发布文件的 SHA256 校验值.
 

@@ -74,8 +74,8 @@ jobs:
         with:
           name: localization-workbench-windows
           path: |
-            dist/汉化工作台-v*.exe
-            dist/汉化工作台-v*-windows.zip
+            dist/localization-workbench-v*.exe
+            dist/localization-workbench-v*-windows.zip
             dist/SHA256SUMS.txt
 
   release:
@@ -115,6 +115,6 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             dist/cursor-i18n-zh-windows.zip
-            dist/汉化工作台-v*.exe
-            dist/汉化工作台-v*-windows.zip
+            dist/localization-workbench-v*.exe
+            dist/localization-workbench-v*-windows.zip
             dist/SHA256SUMS.txt
