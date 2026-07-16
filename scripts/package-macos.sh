@@ -22,6 +22,15 @@ rm -rf "$ICONSET"
 
 cd "$TAURI"
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
+# The certificate is imported by GitHub Actions. Leaving its base64 payload in
+# Tauri's environment makes the bundler try to import it a second time, and an
+# unset secret is still exposed as an empty variable on unsigned builds.
+unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD
+for variable in APPLE_SIGNING_IDENTITY APPLE_ID APPLE_APP_PASSWORD APPLE_TEAM_ID; do
+  if [[ -z "${!variable:-}" ]]; then
+    unset "$variable"
+  fi
+done
 cargo tauri build --target "$TARGET" --bundles app
 
 APP="$TAURI/target/$TARGET/release/bundle/macos/汉化工作台.app"
