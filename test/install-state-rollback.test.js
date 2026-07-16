@@ -66,6 +66,7 @@ test('restores the exact previous install state when adding a language pack fail
     checksums: {},
   }));
   fs.writeFileSync(path.join(appDir, 'bin', 'cursor.cmd'), '@exit /b 0\r\n');
+  fs.writeFileSync(path.join(appDir, 'bin', 'cursor'), '#!/bin/sh\nexit 0\n');
   fs.writeFileSync(argv, previousArgv);
   fs.writeFileSync(stateFile, previousStateRaw);
 
