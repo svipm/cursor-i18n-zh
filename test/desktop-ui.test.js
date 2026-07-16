@@ -391,4 +391,7 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /Start-Process -FilePath taskkill\.exe[^\n]+-Wait -PassThru/);
   assert.match(cursorCompatWorkflow, /cleanup\.ExitCode -ne 0/);
   assert.match(cursorCompatWorkflow, /needs\.compatibility\.result != 'success'/);
+  assert.match(cursorCompatWorkflow, /resolve-failure:[\s\S]+needs\.compatibility\.result == 'success'/);
+  assert.match(cursorCompatWorkflow, /Close resolved compatibility issue/);
+  assert.match(cursorCompatWorkflow, /state_reason: 'completed'/);
 });
