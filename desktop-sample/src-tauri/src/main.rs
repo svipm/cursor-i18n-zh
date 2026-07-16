@@ -100,6 +100,11 @@ fn extension_inventory(
 }
 
 #[tauri::command]
+fn extension_targets() -> Vec<extensions::ExtensionTargetDescriptor> {
+    extensions::extension_targets()
+}
+
+#[tauri::command]
 fn extension_mcp_details(
     request: extensions::McpLookupRequest,
 ) -> Result<extensions::McpServerDetails, String> {
@@ -334,8 +339,9 @@ fn workspace_from_output(
 #[cfg(target_os = "windows")]
 fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
     let script = match mode {
-        "save" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter='扩展配置包 (*.json)|*.json'; $dialog.FileName='i18n-workbench-extensions.json'; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
-        "open" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter='扩展配置包 (*.json)|*.json'; $dialog.CheckFileExists=$true; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
+        "save-redacted" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter='脱敏扩展配置包 (*.json)|*.json'; $dialog.FileName='i18n-workbench-extensions.json'; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
+        "save-private" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter='加密私密配置包 (*.iwbundle)|*.iwbundle'; $dialog.FileName='i18n-workbench-private.iwbundle'; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
+        "open" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter='扩展配置包 (*.json;*.iwbundle)|*.json;*.iwbundle|脱敏配置包 (*.json)|*.json|加密私密包 (*.iwbundle)|*.iwbundle'; $dialog.CheckFileExists=$true; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
         _ => return Err(format!("不支持的配置包选择模式: {mode}")),
     };
     workspace_from_output(
@@ -348,8 +354,9 @@ fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
 #[cfg(target_os = "macos")]
 fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
     let script = match mode {
-        "save" => "POSIX path of (choose file name with prompt \"导出扩展配置包\" default name \"i18n-workbench-extensions.json\")",
-        "open" => "POSIX path of (choose file with prompt \"选择扩展配置包\" of type {\"public.json\"})",
+        "save-redacted" => "POSIX path of (choose file name with prompt \"导出脱敏扩展配置包\" default name \"i18n-workbench-extensions.json\")",
+        "save-private" => "POSIX path of (choose file name with prompt \"导出加密私密配置包\" default name \"i18n-workbench-private.iwbundle\")",
+        "open" => "POSIX path of (choose file with prompt \"选择扩展配置包\")",
         _ => return Err(format!("不支持的配置包选择模式: {mode}")),
     };
     workspace_from_output(
@@ -362,13 +369,18 @@ fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
     let mut command = adapters::hidden_command("zenity");
-    command.args(["--file-selection", "--file-filter=*.json"]);
-    if mode == "save" {
-        command.args([
-            "--save",
-            "--confirm-overwrite",
-            "--filename=i18n-workbench-extensions.json",
-        ]);
+    command.args([
+        "--file-selection",
+        "--file-filter=扩展配置包 | *.json *.iwbundle",
+    ]);
+    if matches!(mode, "save-redacted" | "save-private") {
+        let filename = if mode == "save-private" {
+            "i18n-workbench-private.iwbundle"
+        } else {
+            "i18n-workbench-extensions.json"
+        };
+        command.args(["--save", "--confirm-overwrite"]);
+        command.arg(format!("--filename={filename}"));
     } else if mode != "open" {
         return Err(format!("不支持的配置包选择模式: {mode}"));
     }
@@ -494,6 +506,7 @@ fn main() {
             github_projects,
             extension_market,
             extension_install_market_item,
+            extension_targets,
             extension_inventory,
             extension_mcp_details,
             extension_check_mcp,

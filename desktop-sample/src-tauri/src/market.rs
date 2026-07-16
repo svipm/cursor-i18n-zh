@@ -507,12 +507,14 @@ fn latest_github_revision(repository: &str) -> Result<String, String> {
     let slug = repository.trim_start_matches("https://github.com/");
     let url = format!("https://api.github.com/repos/{slug}/commits?per_page=1");
     let agent = network::platform_agent(Duration::from_secs(12));
-    let mut response = agent
-        .get(&url)
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(&url)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     let value = response
         .body_mut()
         .read_json::<Value>()
@@ -531,11 +533,13 @@ fn fetch_text(url: &str) -> Result<String, String> {
         return Err("市场只允许从 GitHub Raw 下载 Skill".to_string());
     }
     let agent = network::platform_agent(Duration::from_secs(15));
-    let mut response = agent
-        .get(url)
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(url)
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     response
         .body_mut()
         .read_to_string()
@@ -573,12 +577,14 @@ fn fetch_repository_directory(
     let mut total_bytes = 0usize;
     while let Some(path) = pending.pop_front() {
         let url = format!("https://api.github.com/repos/{slug}/contents/{path}?ref={revision}");
-        let mut response = agent
-            .get(&url)
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "cursor-i18n-zh-workbench")
-            .call()
-            .map_err(github_error)?;
+        let mut response = network::with_retry(|| {
+            agent
+                .get(&url)
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "cursor-i18n-zh-workbench")
+                .call()
+        })
+        .map_err(github_error)?;
         let value = response
             .body_mut()
             .read_json::<Value>()
@@ -637,11 +643,13 @@ fn fetch_bytes(agent: &ureq::Agent, url: &str) -> Result<Vec<u8>, String> {
     if !url.starts_with("https://raw.githubusercontent.com/") {
         return Err("市场只允许从 GitHub Raw 下载 Skill 文件".to_string());
     }
-    let mut response = agent
-        .get(url)
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(url)
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     response
         .body_mut()
         .read_to_vec()

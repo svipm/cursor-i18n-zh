@@ -52,13 +52,15 @@ struct RepositoryOwner {
 
 pub fn load_projects() -> Result<Vec<GitHubProject>, String> {
     let agent = network::platform_agent(Duration::from_secs(10));
-    let mut response = agent
-        .get(GITHUB_REPOSITORIES_API)
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(GITHUB_REPOSITORIES_API)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .call()
+    })
+    .map_err(github_error)?;
     let repositories = response
         .body_mut()
         .read_json::<Vec<RepositoryResponse>>()

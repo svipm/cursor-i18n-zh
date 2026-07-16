@@ -50,7 +50,7 @@
             <div><strong id="permissionTitle">正在检查权限</strong><small id="permissionText">请稍候...</small></div>
           </div>
           <div class="version-row">
-            <span>双应用工作台</span><span>v0.3.9</span>
+            <span>双应用工作台</span><span>v0.4.0</span>
           </div>
         </div>
       </aside>
@@ -134,7 +134,7 @@
               <div class="app-meta stacked-meta">
                 <span id="cursorVersion">版本: 检测中</span>
                 <span id="cursorInstallState">正在定位 resources/app...</span>
-                <span class="adapter-state">适配器 v0.3.9</span>
+                <span class="adapter-state">适配器 v0.4.0</span>
                 <span id="cursorCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
               </div>
               <button class="primary-button configure-button" data-open-app="cursor">配置汉化 <span>→</span></button>
@@ -311,9 +311,9 @@
             </div>
 
             <div class="extension-toolbar">
-              <div class="extension-segment" aria-label="目标应用">
-                <button class="active" data-extension-target="cursor"><span class="extension-target-mark cursor">C</span>Cursor</button>
-                <button data-extension-target="claude-code"><span class="extension-target-mark claude">AI</span>Claude Code</button>
+              <div id="extensionTargetSegment" class="extension-segment" aria-label="目标应用">
+                <button class="active" data-extension-target="cursor"><span class="extension-target-mark cursor">C</span><span data-extension-target-label>Cursor</span></button>
+                <button data-extension-target="claude-code"><span class="extension-target-mark claude">AI</span><span data-extension-target-label>Claude Code</span></button>
               </div>
               <div class="extension-segment compact" aria-label="配置范围">
                 <button class="active" data-extension-scope="user">用户级</button>
@@ -323,6 +323,7 @@
                 <input id="extensionWorkspacePath" type="text" readonly placeholder="请先选择工作区" />
                 <button id="chooseExtensionWorkspaceButton" class="secondary-button">选择工作区</button>
               </div>
+              <div id="extensionTargetMeta" class="extension-target-meta" aria-live="polite">正在读取适配器能力...</div>
             </div>
 
             <div id="extensionActivityBanner" class="extension-activity-banner hidden" role="status" aria-live="polite">
@@ -420,7 +421,7 @@
 
               <section id="extensionTransferPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionTransferTab">
                 <div class="extension-panel-heading">
-                  <div><h3>迁移、导入与导出</h3><p>复制操作在 Rust 后端保留密钥, 同名项目必须明确选择跳过或覆盖. 脱敏包仅用于审查, 私密包可完整恢复.</p></div>
+                  <div><h3>迁移、导入与导出</h3><p>复制操作在 Rust 后端保留密钥. 脱敏包用于审查和分享, 私密包使用 Argon2id 与 AES-256-GCM 密码加密.</p></div>
                 </div>
                 <div class="extension-transfer-grid">
                   <article class="extension-transfer-card">
@@ -433,14 +434,19 @@
                   <article class="extension-transfer-card">
                     <span class="extension-transfer-kicker">EXPORT</span>
                     <h4>导出配置包</h4>
-                    <p>脱敏包适合审查和分享. 私密包包含 MCP 密钥, 文件权限会限制为当前用户.</p>
+                    <p>私密包包含 MCP 密钥, 强制使用密码加密. 密码不会保存, 丢失后无法恢复.</p>
+                    <div class="extension-password-grid">
+                      <label><span>私密包密码</span><input id="extensionExportPassword" type="password" autocomplete="new-password" maxlength="256" placeholder="至少 10 个字节"></label>
+                      <label><span>确认密码</span><input id="extensionExportPasswordConfirm" type="password" autocomplete="new-password" maxlength="256" placeholder="再次输入"></label>
+                    </div>
                     <div class="extension-transfer-actions"><button id="exportRedactedBundleButton" class="secondary-button">导出脱敏包</button><button id="exportPrivateBundleButton" class="secondary-button danger-soft">导出私密包</button></div>
                   </article>
                   <article class="extension-transfer-card">
                     <span class="extension-transfer-kicker">IMPORT</span>
                     <h4>导入配置包</h4>
                     <p id="extensionImportPath">尚未选择配置包.</p>
-                    <button id="chooseExtensionImportButton" class="primary-button">选择并预检配置包</button>
+                    <label class="extension-transfer-password"><span>私密包密码</span><input id="extensionImportPassword" type="password" autocomplete="off" maxlength="256" placeholder="脱敏包无需填写"></label>
+                    <div class="extension-transfer-actions"><button id="chooseExtensionImportButton" class="primary-button">选择配置包</button><button id="previewSelectedImportButton" class="secondary-button" disabled>重新预检</button></div>
                   </article>
                 </div>
                 <div id="extensionTransferPreview" class="extension-transfer-preview hidden" aria-live="polite">
@@ -481,7 +487,7 @@
               </div>
               <div class="about-hero-emblem" aria-hidden="true">
                 <strong>译</strong>
-                <span class="about-version-badge">v0.3.9</span>
+                <span class="about-version-badge">v0.4.0</span>
               </div>
             </div>
 
@@ -512,7 +518,7 @@
                   <span id="updateState" class="pill neutral">正在检查</span>
                 </div>
                 <div class="update-version-facts">
-                  <span>当前版本<strong id="updateCurrentVersion">v0.3.9</strong></span>
+                  <span>当前版本<strong id="updateCurrentVersion">v0.4.0</strong></span>
                   <span>最新版本<strong id="updateLatestVersion">--</strong></span>
                 </div>
                 <p id="updateMessage" class="update-message">正在连接 GitHub 检查正式发行版...</p>

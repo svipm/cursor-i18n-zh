@@ -152,6 +152,7 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
     'extensionMarketList',
     'extensionHistoryList',
     'extensionTransferPanel',
+    'extensionTargetMeta',
     'extensionActivityBanner',
     'addMcpButton',
     'addSkillButton',
@@ -161,6 +162,10 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
     'refreshExtensionHistoryButton',
     'previewExtensionCopyButton',
     'chooseExtensionImportButton',
+    'previewSelectedImportButton',
+    'extensionExportPassword',
+    'extensionExportPasswordConfirm',
+    'extensionImportPassword',
     'mcpEditorBackdrop',
     'skillEditorBackdrop',
     'promptEditorBackdrop',
@@ -187,6 +192,7 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
     'extension_delete_prompt',
     'extension_market',
     'extension_install_market_item',
+    'extension_targets',
     'extension_check_mcp',
     'extension_history',
     'extension_restore_history',
@@ -220,6 +226,14 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
   assert.match(extensionSecurity, /has_shell_commands/);
   assert.match(extensionTransfer, /MAX_BUNDLE_BYTES/);
   assert.match(extensionTransfer, /set_private_permissions/);
+  assert.match(extensionTransfer, /Argon2id/);
+  assert.match(extensionTransfer, /Aes256Gcm/);
+  assert.match(extensionTransfer, /ENCRYPTED_AAD/);
+  assert.match(extensionTransfer, /\.zeroize\(\)/);
+  assert.match(extensionTransfer, /Zeroizing/);
+  assert.match(extensionTransfer, /包含密钥的配置包必须使用密码加密导出/);
+  assert.match(extensionTargets, /ExtensionTargetDescriptor/);
+  assert.match(script, /loadExtensionTargets/);
   assert.match(extensions, /extension-registry/);
   assert.match(extensions, /install_skill_bundle/);
   assert.match(market, /MAX_TOTAL_BYTES/);
@@ -296,6 +310,11 @@ test('desktop network uses the Windows trusted certificate chain', () => {
   assert.match(cargo, /"win-system-proxy"/);
   assert.match(network, /RootCerts::PlatformVerifier/);
   assert.doesNotMatch(network, /disable_verification\s*\(\s*true\s*\)/);
+  assert.match(network, /pub fn with_retry/);
+  assert.match(network, /500 \| 502 \| 503 \| 504/);
+  assert.match(github, /network::with_retry/);
+  assert.match(market, /network::with_retry/);
+  assert.match(release, /network::with_retry/);
 });
 
 test('desktop UI exposes Node.js 18 runtime detection', () => {

@@ -119,6 +119,8 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 - 每次扩展修改前创建包含 MCP, 完整 Skill 目录, 提示词和来源注册表的结构化快照, 显示 added/modified/deleted 差异并支持一键恢复.
 - 支持搜索、状态与风险筛选、批量启停, 并在首页和导航中提示异常 MCP、高风险 Skill 或本地修改.
 - 支持 Cursor 与 Claude Code 之间复制 MCP, Skill 和提示词, 自动转换目标格式; 支持脱敏配置包和明确警告的私密配置包导入导出.
+- 私密配置包使用 Argon2id 派生密钥和 AES-256-GCM 认证加密, 密钥内容禁止以明文 JSON 导出; 错误密码或文件篡改会被拒绝.
+- 扩展目标通过后端适配器描述清单向界面提供版本、说明及用户级或项目级能力, 为后续增加更多软件建立统一入口.
 - 非市场安装但带有 GitHub 来源的项目也会展示仓库. 缺少已安装提交记录时显示“版本未知”, GitHub 请求失败时显示“检查失败”, 不伪报为最新.
 
 ## 核心能力
@@ -132,6 +134,7 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 - 在界面中检测 Node.js 版本, 管理员权限, 应用兼容状态和备份状态.
 - 首次启动先显示软件声明与隐私说明. 用户同意前不扫描本机应用, 不读取用量, 不检查版本.
 - 启动后可选检查 GitHub 最新正式版本. 用户可以手动下载官方 Release 更新包, 工作台会校验 SHA256 后打开所在目录, 不静默安装, 不强制更新.
+- GitHub 项目、扩展市场、版本检查和更新下载会对 HTTP 500/502/503/504、超时及短暂连接失败执行有限重试, 403/404 等永久错误不会重复请求.
 - 在独立扩展管理页维护 Cursor 与 Claude Code 的 MCP, Skill 和提示词, 支持用户级与项目级作用域及 GitHub 更新检查.
 - 扩展检查与市场安装显示统一进度反馈, 键盘支持 Esc 关闭弹窗和方向键切换 Tab, 并为焦点和减少动态效果提供无障碍适配.
 
@@ -140,14 +143,14 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 从 [最新发行版](https://github.com/svipm/cursor-i18n-zh/releases/latest) 下载推荐的完整便携包:
 
 ```text
-localization-workbench-v0.3.9-windows.zip
+localization-workbench-v0.4.0-windows.zip
 ```
 
 执行步骤:
 
 1. 解压完整 ZIP, 不要只移动其中的 EXE.
 2. 如果要汉化 Cursor, 先安装 Node.js 18 或更高版本.
-3. 双击 `localization-workbench-v0.3.9.exe`.
+3. 双击 `localization-workbench-v0.4.0.exe`.
 4. 阅读并同意首次启动声明与隐私说明.
 5. 打开“备份”页, 为目标应用创建并校验当前版本原始备份.
 6. 打开“软件中心”, 选择目标语言并安装汉化.
@@ -205,8 +208,8 @@ Claude Desktop 适配流程:
 
 macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 
-- `localization-workbench-v0.3.9-macos.dmg`: 推荐安装包.
-- `localization-workbench-v0.3.9-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
+- `localization-workbench-v0.4.0-macos.dmg`: 推荐安装包.
+- `localization-workbench-v0.4.0-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
 - 默认构建 Universal Binary, 同时包含 Apple Silicon `arm64` 和 Intel `x86_64`.
 - 从 Finder 启动时会定位 PATH, Homebrew, NVM, Volta, asdf, mise 和 fnm 中的 Node.js, 并使用检测到的实际可执行文件运行 Cursor 引擎.
 - 自动定位 `/Applications/Cursor.app/Contents/Resources/app` 和 `/Applications/Claude.app/Contents/Resources`.
@@ -232,7 +235,10 @@ macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 - 提示词停用时移动到独立目录, 删除时同样进入工作台回收目录.
 - 市场只接受清单内经过校验的 GitHub 仓库首页和 GitHub Raw Skill 地址. 内容写入和来源登记在同一个可回滚事务内, MCP 密钥不会进入市场请求.
 - 为防止目录逃逸和不完整备份, Skill 审计、迁移和历史快照拒绝跟随符号链接.
-- 脱敏配置包不会写入密钥. 私密配置包包含 MCP 环境变量和请求头, 仅应保存在可信位置; macOS 和 Linux 会将文件权限限制为 `0600`.
+- 脱敏配置包不会写入密钥. 私密配置包使用 `.iwbundle` 格式, 通过 Argon2id 和 AES-256-GCM 加密 MCP 环境变量及请求头; macOS 和 Linux 同时将文件权限限制为 `0600`.
+- 配置包密码不会写入日志或落盘. 密码至少需要 10 个 UTF-8 字节, 丢失后无法恢复; 加密包被修改或密码错误时认证解密会失败.
+- 派生密钥和加解密明文缓冲区在完成操作后主动清零, 减少敏感内容在工作台内存中的残留时间.
+- v0.3.9 及更早版本产生的明文私密 JSON 仍可导入用于迁移, 但界面会明确警告并建议导入后立即删除源文件.
 
 ## Cursor 用量与隐私
 
@@ -280,10 +286,10 @@ GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成
 
 ## 发布产物
 
-- `localization-workbench-v0.3.9-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
-- `localization-workbench-v0.3.9.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
-- `localization-workbench-v0.3.9-macos.dmg`: macOS 推荐安装包.
-- `localization-workbench-v0.3.9-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
+- `localization-workbench-v0.4.0-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
+- `localization-workbench-v0.4.0.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `localization-workbench-v0.4.0-macos.dmg`: macOS 推荐安装包.
+- `localization-workbench-v0.4.0-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
 - `cursor-i18n-zh-windows.zip`: Cursor 终端版和传统入口.
 - `SHA256SUMS.txt`: 所有发布文件的 SHA256 校验值.
 
@@ -296,7 +302,7 @@ GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成
 - [Acorn](https://github.com/acornjs/acorn): JavaScript 语法分析运行时, MIT.
 - [OpenCC-JS](https://github.com/nk2028/opencc-js): 简繁转换运行时, MIT 与 Apache-2.0. OpenCC 字典数据遵守 Apache-2.0.
 - [Tauri](https://github.com/tauri-apps/tauri): 桌面 GUI 框架, MIT 或 Apache-2.0.
-- `ureq`, `rusqlite`, `Serde`, `RustCrypto hashes` 等 Rust 依赖: 具体版本由 `desktop-sample/src-tauri/Cargo.lock` 固定.
+- `ureq`, `rusqlite`, `Serde`, `AES-GCM`, `Argon2`, `RustCrypto hashes` 等 Rust 依赖: 具体版本由 `desktop-sample/src-tauri/Cargo.lock` 固定.
 - Microsoft 官方中文语言包 `ms-ceintl.vscode-language-pack-zh-hans` 和 `ms-ceintl.vscode-language-pack-zh-hant`: 仅通过 Cursor CLI 按需安装或读取, 本仓库和 Release 不重新分发其内容.
 - 扩展市场引用 [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp), [upstash/context7](https://github.com/upstash/context7), [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) 和 [anthropics/skills](https://github.com/anthropics/skills). 仓库只保存安装清单, 不内嵌这些项目的程序包; 用户主动安装时从 npm 或 GitHub Raw 获取, 使用时遵守各来源仓库许可证.
 

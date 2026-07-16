@@ -38,12 +38,14 @@ pub struct UpdateDownloadResult {
 pub fn check_for_updates() -> Result<UpdateStatus, String> {
     let current = env!("CARGO_PKG_VERSION").to_string();
     let agent = network::platform_agent(Duration::from_secs(10));
-    let mut response = agent
-        .get(LATEST_RELEASE_API)
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(LATEST_RELEASE_API)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     let value = response
         .body_mut()
         .read_json::<Value>()
@@ -147,12 +149,14 @@ pub fn validate_update_path(path: &Path) -> Result<PathBuf, String> {
 }
 
 fn fetch_latest_release(agent: &ureq::Agent) -> Result<Value, String> {
-    let mut response = agent
-        .get(LATEST_RELEASE_API)
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(LATEST_RELEASE_API)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     response
         .body_mut()
         .read_json::<Value>()
@@ -176,11 +180,13 @@ fn release_asset_url(release: &Value, name: &str) -> Result<String, String> {
 }
 
 fn download_bytes(agent: &ureq::Agent, url: &str, limit: usize) -> Result<Vec<u8>, String> {
-    let mut response = agent
-        .get(url)
-        .header("User-Agent", "cursor-i18n-zh-workbench")
-        .call()
-        .map_err(github_error)?;
+    let mut response = network::with_retry(|| {
+        agent
+            .get(url)
+            .header("User-Agent", "cursor-i18n-zh-workbench")
+            .call()
+    })
+    .map_err(github_error)?;
     let data = response
         .body_mut()
         .with_config()

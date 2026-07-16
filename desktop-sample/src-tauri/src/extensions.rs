@@ -18,6 +18,7 @@ mod transfer;
 pub use health::McpHealthResult;
 pub use history::ExtensionHistoryRecord;
 pub use security::SkillAudit;
+pub use targets::ExtensionTargetDescriptor;
 pub use transfer::TransferPreview;
 
 const REDACTED_VALUE: &str = "••••••";
@@ -203,6 +204,8 @@ pub struct ExtensionExportRequest {
     pub path: String,
     #[serde(default)]
     pub include_secrets: bool,
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +214,8 @@ pub struct ExtensionImportPreviewRequest {
     #[serde(flatten)]
     pub query: ExtensionQuery,
     pub path: String,
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -220,6 +225,8 @@ pub struct ExtensionImportRequest {
     pub query: ExtensionQuery,
     pub path: String,
     pub conflict_policy: String,
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -242,6 +249,7 @@ pub struct ExtensionCopyRequest {
 pub struct ExtensionExportResult {
     pub path: String,
     pub includes_secrets: bool,
+    pub encrypted: bool,
     pub mcp_count: usize,
     pub skill_count: usize,
     pub prompt_count: usize,
@@ -376,6 +384,10 @@ pub fn inventory(query: ExtensionQuery) -> Result<ExtensionInventory, String> {
     inventory_with_home(query, &home_dir()?)
 }
 
+pub fn extension_targets() -> Vec<ExtensionTargetDescriptor> {
+    targets::descriptors()
+}
+
 pub fn mcp_details(request: McpLookupRequest) -> Result<McpServerDetails, String> {
     let paths = resolve_paths(&request.query, &home_dir()?)?;
     validate_mcp_name(&request.name)?;
@@ -477,11 +489,20 @@ pub fn export_extension_bundle(
     let home = home_dir()?;
     let bundle = bundle_from_query(&request.query, &home, request.include_secrets)?;
     let path = PathBuf::from(request.path.trim());
-    transfer::write_bundle(&path, &bundle)?;
+    if request.include_secrets {
+        transfer::write_encrypted_bundle(
+            &path,
+            &bundle,
+            request.password.as_deref().unwrap_or_default(),
+        )?;
+    } else {
+        transfer::write_bundle(&path, &bundle)?;
+    }
     restore_user_ownership(&path);
     Ok(ExtensionExportResult {
         path: path.display().to_string(),
         includes_secrets: bundle.includes_secrets,
+        encrypted: request.include_secrets,
         mcp_count: bundle.mcp_servers.len(),
         skill_count: bundle.skills.len(),
         prompt_count: bundle.prompts.len(),
@@ -492,15 +513,17 @@ pub fn preview_extension_import(
     request: ExtensionImportPreviewRequest,
 ) -> Result<TransferPreview, String> {
     let home = home_dir()?;
-    let bundle = transfer::read_bundle(Path::new(request.path.trim()))?;
-    preview_bundle(&bundle, &request.query, &home)
+    let (bundle, encrypted) =
+        transfer::read_bundle(Path::new(request.path.trim()), request.password.as_deref())?;
+    preview_bundle(&bundle, &request.query, &home, encrypted)
 }
 
 pub fn import_extension_bundle(
     request: ExtensionImportRequest,
 ) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
-    let bundle = transfer::read_bundle(Path::new(request.path.trim()))?;
+    let (bundle, _) =
+        transfer::read_bundle(Path::new(request.path.trim()), request.password.as_deref())?;
     let query = request.query.clone();
     let summary = format!(
         "导入 {} 的扩展配置包",
@@ -522,7 +545,7 @@ pub fn preview_extension_copy(
 ) -> Result<TransferPreview, String> {
     let home = home_dir()?;
     let bundle = bundle_from_query(&request.source, &home, true)?;
-    preview_bundle(&bundle, &request.destination, &home)
+    preview_bundle(&bundle, &request.destination, &home, false)
 }
 
 pub fn copy_extensions(request: ExtensionCopyRequest) -> Result<ExtensionMutationResult, String> {
@@ -772,6 +795,7 @@ fn preview_bundle(
     bundle: &transfer::ExtensionBundle,
     destination: &ExtensionQuery,
     home: &Path,
+    encrypted: bool,
 ) -> Result<TransferPreview, String> {
     let paths = resolve_paths(destination, home)?;
     let active = load_document(&paths.mcp_config)?;
@@ -860,6 +884,7 @@ fn preview_bundle(
         prompt_count: bundle.prompts.len(),
         conflicts,
         includes_secrets: bundle.includes_secrets,
+        encrypted,
     })
 }
 
@@ -872,7 +897,7 @@ fn apply_bundle(
     if !matches!(conflict_policy, "fail" | "skip" | "overwrite") {
         return Err(format!("不支持的冲突策略: {conflict_policy}"));
     }
-    let preview = preview_bundle(bundle, destination, home)?;
+    let preview = preview_bundle(bundle, destination, home, false)?;
     if preview
         .conflicts
         .iter()
@@ -3410,7 +3435,7 @@ mod tests {
         let source = query("cursor", "project", Some(&workspace));
         let destination = query("claude-code", "project", Some(&workspace));
         let bundle = bundle_from_query(&source, &home, true).unwrap();
-        let preview = preview_bundle(&bundle, &destination, &home).unwrap();
+        let preview = preview_bundle(&bundle, &destination, &home, false).unwrap();
         assert!(preview.conflicts.is_empty());
         apply_bundle(&bundle, &destination, &home, "overwrite").unwrap();
 
@@ -3424,7 +3449,7 @@ mod tests {
             .is_file());
         assert!(workspace.join(".claude/rules/review.md").is_file());
 
-        let conflict = preview_bundle(&bundle, &destination, &home).unwrap();
+        let conflict = preview_bundle(&bundle, &destination, &home, false).unwrap();
         assert_eq!(conflict.conflicts.len(), 3);
         let sanitized = bundle_from_query(&source, &home, false).unwrap();
         assert!(apply_bundle(&sanitized, &destination, &home, "overwrite").is_err());

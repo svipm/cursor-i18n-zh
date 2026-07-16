@@ -10,6 +10,7 @@ const state = {
   githubProjectsLoading: false,
   githubProjectsLoaded: false,
   extensionTarget: "cursor",
+  extensionTargets: [],
   extensionScope: "user",
   extensionWorkspace: "",
   extensionTab: "mcp",
@@ -169,7 +170,7 @@ function browserFallbackApps() {
   return [
     {
       id: "cursor", name: "Cursor", installed: true, ready: true, path: "浏览器预览模式",
-      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.3.9",
+      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.4.0",
       backupAvailable: true, backupPath: "浏览器预览模式\\backup\\preview", backupFiles: 7,
       backupMessage: "浏览器预览样例: 7 个文件已通过完整性校验", localized: false, reason: null,
       autoCompatible: true, compatibilityMessage: "已按资源结构自动适配未来 Cursor 版本, 安装前仍会执行完整语法预检",
@@ -227,13 +228,13 @@ function browserFallbackUsage() {
 
 function browserFallbackUpdateStatus() {
   return {
-    currentVersion: "0.3.9",
-    latestVersion: "0.3.9",
+    currentVersion: "0.4.0",
+    latestVersion: "0.4.0",
     updateAvailable: false,
     currentAhead: false,
     releaseUrl: "https://github.com/svipm/cursor-i18n-zh/releases",
     publishedAt: new Date().toISOString(),
-    message: "浏览器预览样例: 当前 v0.3.9 已是最新版本",
+    message: "浏览器预览样例: 当前 v0.4.0 已是最新版本",
   };
 }
 
@@ -680,7 +681,7 @@ async function downloadLatestUpdate() {
   try {
     const result = invoke
       ? await invoke("download_latest_update")
-      : { version: "0.3.9", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo" };
+      : { version: "0.4.0", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo" };
     addLog("DONE", `更新包 v${result.version} 已下载并通过 SHA256 校验: ${result.path}`);
     showToast(`更新包 v${result.version} 已准备完成.`, "success");
     if (invoke) await invoke("open_downloaded_update", { path: result.path });
@@ -964,7 +965,61 @@ function updateExtensionControls() {
   if ($("#extensionCopyTarget").value === state.extensionTarget) {
     $("#extensionCopyTarget").value = state.extensionTarget === "cursor" ? "claude-code" : "cursor";
   }
+  renderExtensionTargetMeta();
   updateExtensionSelectionControls();
+}
+
+function renderExtensionTargetMeta() {
+  const descriptor = state.extensionTargets.find((target) => target.id === state.extensionTarget);
+  const meta = $("#extensionTargetMeta");
+  if (!descriptor) {
+    meta.textContent = "内置适配器";
+    return;
+  }
+  const capabilities = state.extensionScope === "project"
+    ? descriptor.projectCapabilities
+    : descriptor.userCapabilities;
+  const labels = {
+    mcp: "MCP",
+    skills: "Skills",
+    prompts: "提示词",
+    "health-check": "健康检测",
+    transfer: "迁移",
+  };
+  meta.textContent = `适配器 v${descriptor.adapterVersion} · ${(capabilities || []).map((value) => labels[value] || value).join(" / ")}`;
+  meta.title = descriptor.description;
+}
+
+async function loadExtensionTargets() {
+  if (state.extensionTargets.length) return;
+  state.extensionTargets = invoke
+    ? await invoke("extension_targets")
+    : [
+        { id: "cursor", label: "Cursor", adapterVersion: "1.0.0", description: "管理 Cursor 扩展", userCapabilities: ["mcp", "skills", "health-check", "transfer"], projectCapabilities: ["mcp", "skills", "prompts", "health-check", "transfer"] },
+        { id: "claude-code", label: "Claude Code", adapterVersion: "1.0.0", description: "管理 Claude Code 扩展", userCapabilities: ["mcp", "skills", "prompts", "health-check", "transfer"], projectCapabilities: ["mcp", "skills", "prompts", "health-check", "transfer"] },
+      ];
+  const segment = $("#extensionTargetSegment");
+  segment.replaceChildren(...state.extensionTargets.map((target) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.extensionTarget = target.id;
+    const mark = document.createElement("span");
+    mark.className = `extension-target-mark ${target.id === "cursor" ? "cursor" : target.id === "claude-code" ? "claude" : "generic"}`;
+    mark.textContent = target.id === "cursor" ? "C" : target.id === "claude-code" ? "AI" : target.label.slice(0, 2).toUpperCase();
+    const label = document.createElement("span");
+    label.dataset.extensionTargetLabel = "";
+    label.textContent = target.label;
+    button.append(mark, label);
+    return button;
+  }));
+  const options = $("#extensionCopyTarget");
+  options.replaceChildren(...state.extensionTargets.map((target) => {
+    const option = document.createElement("option");
+    option.value = target.id;
+    option.textContent = target.label;
+    return option;
+  }));
+  updateExtensionControls();
 }
 
 function renderExtensionHistory(records) {
@@ -1076,7 +1131,14 @@ function renderTransferPreview(preview, mode) {
   const source = preview.sourceTarget === "cursor" ? "Cursor" : "Claude Code";
   const destination = preview.destinationTarget === "cursor" ? "Cursor" : "Claude Code";
   $("#extensionTransferPreviewTitle").textContent = `${source} → ${destination}`;
-  $("#extensionTransferPreviewSummary").textContent = `MCP ${preview.mcpCount}, Skill ${preview.skillCount}, 提示词 ${preview.promptCount}, 同名冲突 ${(preview.conflicts || []).length}. ${preview.includesSecrets ? "密钥可完整迁移." : "配置包已脱敏."}`;
+  const protection = preview.encrypted
+    ? "私密内容已通过密码解密."
+    : preview.includesSecrets
+      ? mode === "copy"
+        ? "应用间复制仅在内存中保留密钥."
+        : "检测到旧版明文私密包, 导入后请立即删除源文件."
+      : "配置包已脱敏.";
+  $("#extensionTransferPreviewSummary").textContent = `MCP ${preview.mcpCount}, Skill ${preview.skillCount}, 提示词 ${preview.promptCount}, 同名冲突 ${(preview.conflicts || []).length}. ${protection}`;
   const conflicts = $("#extensionTransferConflicts");
   conflicts.replaceChildren();
   (preview.conflicts || []).forEach((conflict) => {
@@ -1099,6 +1161,12 @@ function renderTransferPreview(preview, mode) {
   }
   $("#extensionConflictPolicy").value = (preview.conflicts || []).length ? "fail" : "overwrite";
   $("#extensionTransferPreview").classList.remove("hidden");
+}
+
+function invalidateExtensionTransferPreview() {
+  state.extensionTransferPreview = null;
+  state.extensionTransferMode = "";
+  $("#extensionTransferPreview").classList.add("hidden");
 }
 
 async function previewExtensionCopy() {
@@ -1130,20 +1198,43 @@ async function previewExtensionCopy() {
 
 async function exportExtensionBundle(includeSecrets) {
   if (state.extensionRunning) return;
-  if (includeSecrets && !window.confirm("私密配置包会包含 MCP 密钥、环境变量和请求头. 请只保存在可信位置, 是否继续?")) return;
+  const password = includeSecrets ? $("#extensionExportPassword").value : "";
+  const confirmation = includeSecrets ? $("#extensionExportPasswordConfirm").value : "";
+  if (includeSecrets) {
+    const passwordBytes = new TextEncoder().encode(password).length;
+    if (passwordBytes < 10) {
+      showToast("私密包密码至少需要 10 个字节.", "warning");
+      return;
+    }
+    if (passwordBytes > 256) {
+      showToast("私密包密码不能超过 256 个字节.", "warning");
+      return;
+    }
+    if (password !== confirmation) {
+      showToast("两次输入的私密包密码不一致.", "warning");
+      return;
+    }
+    if (!window.confirm("私密配置包将包含 MCP 密钥, 并使用当前密码加密. 密码丢失后无法恢复, 是否继续?")) return;
+  }
   const button = includeSecrets ? $("#exportPrivateBundleButton") : $("#exportRedactedBundleButton");
   setButtonBusy(button, true, "导出中...");
   try {
     const path = invoke
-      ? await invoke("choose_extension_bundle_path", { mode: "save" })
-      : "D:\\Downloads\\i18n-workbench-extensions.json";
+      ? await invoke("choose_extension_bundle_path", { mode: includeSecrets ? "save-private" : "save-redacted" })
+      : includeSecrets
+        ? "D:\\Downloads\\i18n-workbench-private.iwbundle"
+        : "D:\\Downloads\\i18n-workbench-extensions.json";
     if (!path) return;
-    const request = { ...extensionQuery(), path, includeSecrets };
+    const request = { ...extensionQuery(), path, includeSecrets, password: includeSecrets ? password : null };
     const result = invoke
       ? await invoke("extension_export_bundle", { request })
-      : { path, includesSecrets: includeSecrets, mcpCount: 2, skillCount: 1, promptCount: 1 };
+      : { path, includesSecrets: includeSecrets, encrypted: includeSecrets, mcpCount: 2, skillCount: 1, promptCount: 1 };
     addLog("DONE", `扩展配置包已导出: ${result.path}`);
-    showToast(includeSecrets ? "私密配置包已导出." : "脱敏配置包已导出.", "success");
+    if (includeSecrets) {
+      $("#extensionExportPassword").value = "";
+      $("#extensionExportPasswordConfirm").value = "";
+    }
+    showToast(includeSecrets ? "加密私密配置包已导出." : "脱敏配置包已导出.", "success");
   } catch (error) {
     addLog("WARN", `扩展配置包导出失败: ${normalizeError(error)}`);
     showToast("扩展配置包导出失败.", "warning");
@@ -1161,17 +1252,42 @@ async function chooseAndPreviewExtensionImport() {
       ? await invoke("choose_extension_bundle_path", { mode: "open" })
       : "D:\\Downloads\\i18n-workbench-extensions.json";
     if (!path) return;
+    invalidateExtensionTransferPreview();
     state.extensionImportPath = path;
     $("#extensionImportPath").textContent = path;
     $("#extensionImportPath").title = path;
-    const request = { ...extensionQuery(), path };
-    const preview = invoke
-      ? await invoke("extension_preview_import", { request })
-      : { sourceTarget: "claude-code", destinationTarget: state.extensionTarget, mcpCount: 2, skillCount: 1, promptCount: 1, conflicts: [], includesSecrets: true };
-    renderTransferPreview(preview, "import");
+    $("#previewSelectedImportButton").disabled = false;
+    await previewSelectedExtensionImport();
   } catch (error) {
     addLog("WARN", `配置包预检失败: ${normalizeError(error)}`);
     showToast("配置包预检失败.", "warning");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function previewSelectedExtensionImport() {
+  if (state.extensionRunning || !state.extensionImportPath) return;
+  const button = $("#previewSelectedImportButton");
+  setButtonBusy(button, true, "预检中...");
+  try {
+    const password = $("#extensionImportPassword").value;
+    if (new TextEncoder().encode(password).length > 256) {
+      showToast("私密包密码不能超过 256 个字节.", "warning");
+      return;
+    }
+    const request = {
+      ...extensionQuery(),
+      path: state.extensionImportPath,
+      password: password || null,
+    };
+    const preview = invoke
+      ? await invoke("extension_preview_import", { request })
+      : { sourceTarget: "claude-code", destinationTarget: state.extensionTarget, mcpCount: 2, skillCount: 1, promptCount: 1, conflicts: [], includesSecrets: true, encrypted: true };
+    renderTransferPreview(preview, "import");
+  } catch (error) {
+    addLog("WARN", `配置包预检失败: ${normalizeError(error)}`);
+    showToast(normalizeError(error).includes("密码") ? "配置包密码错误或尚未填写." : "配置包预检失败.", "warning");
   } finally {
     setButtonBusy(button, false);
   }
@@ -1196,12 +1312,18 @@ async function applyExtensionTransfer() {
       const request = { source: extensionQuery(), destination: destinationExtensionQuery(), conflictPolicy: policy };
       result = invoke ? await invoke("extension_copy", { request }) : { message: "扩展复制完成", inventory: state.extensionInventory };
     } else {
-      const request = { ...extensionQuery(), path: state.extensionImportPath, conflictPolicy: policy };
+      const request = {
+        ...extensionQuery(),
+        path: state.extensionImportPath,
+        conflictPolicy: policy,
+        password: $("#extensionImportPassword").value || null,
+      };
       result = invoke ? await invoke("extension_import_bundle", { request }) : { message: "配置包导入完成", inventory: state.extensionInventory };
     }
     if (state.extensionTransferMode === "import") {
       renderExtensionInventory(result.inventory);
       await loadExtensionHistory();
+      $("#extensionImportPassword").value = "";
     }
     $("#extensionTransferPreview").classList.add("hidden");
     state.extensionTransferPreview = null;
@@ -1811,6 +1933,7 @@ function renderExtensionInventory(inventory) {
 
 async function loadExtensionInventory() {
   if (state.extensionLoading) return;
+  await loadExtensionTargets();
   updateExtensionControls();
   if (state.extensionScope === "project" && !state.extensionWorkspace) {
     state.extensionInventory = null;
@@ -2615,20 +2738,23 @@ $$(`.nav-item[data-section]`).forEach((button) => {
   button.addEventListener("click", () => activateSection(button.dataset.section));
 });
 
-$$(`[data-extension-target]`).forEach((button) => {
-  button.addEventListener("click", () => {
+$("#extensionTargetSegment").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-extension-target]");
+  if (button) {
     state.extensionTarget = button.dataset.extensionTarget;
+    invalidateExtensionTransferPreview();
     state.extensionSelection.clear();
     state.extensionMarket = [];
     state.extensionHistory = [];
     loadExtensionInventory();
     if (state.extensionTab === "market") loadExtensionMarket();
     if (state.extensionTab === "history") loadExtensionHistory();
-  });
+  }
 });
 $$(`[data-extension-scope]`).forEach((button) => {
   button.addEventListener("click", () => {
     state.extensionScope = button.dataset.extensionScope;
+    invalidateExtensionTransferPreview();
     state.extensionSelection.clear();
     state.extensionMarket = [];
     state.extensionHistory = [];
@@ -2672,6 +2798,10 @@ $("#previewExtensionCopyButton").addEventListener("click", previewExtensionCopy)
 $("#exportRedactedBundleButton").addEventListener("click", () => exportExtensionBundle(false));
 $("#exportPrivateBundleButton").addEventListener("click", () => exportExtensionBundle(true));
 $("#chooseExtensionImportButton").addEventListener("click", chooseAndPreviewExtensionImport);
+$("#previewSelectedImportButton").addEventListener("click", previewSelectedExtensionImport);
+$("#extensionImportPassword").addEventListener("input", () => {
+  if (state.extensionTransferMode === "import") invalidateExtensionTransferPreview();
+});
 $("#applyExtensionTransferButton").addEventListener("click", applyExtensionTransfer);
 $("#extensionSearchInput").addEventListener("input", (event) => {
   state.extensionSearch = event.target.value;

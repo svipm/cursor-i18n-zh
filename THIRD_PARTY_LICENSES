@@ -38,6 +38,11 @@ ureq 3.3.0: https://github.com/algesten/ureq (MIT OR Apache-2.0)
 rusqlite 0.40.1: https://github.com/rusqlite/rusqlite (MIT)
 Serde and serde_json: https://github.com/serde-rs/serde (MIT OR Apache-2.0)
 sha2 0.10: https://github.com/RustCrypto/hashes (MIT OR Apache-2.0)
+aes-gcm 0.10: https://github.com/RustCrypto/AEADs (MIT OR Apache-2.0)
+aes 0.8: https://github.com/RustCrypto/block-ciphers (MIT OR Apache-2.0)
+argon2 0.5: https://github.com/RustCrypto/password-hashes (MIT OR Apache-2.0)
+rand_core 0.6: https://github.com/rust-random/rand (MIT OR Apache-2.0)
+zeroize 1: https://github.com/RustCrypto/utils (MIT OR Apache-2.0)
 base64 0.22: https://github.com/marshallpierce/rust-base64 (MIT OR Apache-2.0)
 
 The complete resolved Rust dependency graph and exact versions are recorded in

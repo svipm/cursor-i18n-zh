@@ -1,11 +1,25 @@
+use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 use super::{ExtensionPaths, Scope, Target};
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionTargetDescriptor {
+    pub id: String,
+    pub label: String,
+    pub adapter_version: String,
+    pub description: String,
+    pub user_capabilities: Vec<String>,
+    pub project_capabilities: Vec<String>,
+}
+
 pub(super) trait ExtensionTargetAdapter: Sync {
     fn id(&self) -> &'static str;
     fn label(&self) -> &'static str;
+    fn version(&self) -> &'static str;
+    fn description(&self) -> &'static str;
     fn user_paths(&self, home: &Path) -> AdapterPaths;
     fn project_paths(&self, workspace: &Path) -> AdapterPaths;
     fn read_only_skill_roots(
@@ -40,6 +54,20 @@ pub(super) fn adapter(target: Target) -> &'static dyn ExtensionTargetAdapter {
         Target::Cursor => &CURSOR,
         Target::ClaudeCode => &CLAUDE_CODE,
     }
+}
+
+pub(super) fn descriptors() -> Vec<ExtensionTargetDescriptor> {
+    [adapter(Target::Cursor), adapter(Target::ClaudeCode)]
+        .into_iter()
+        .map(|adapter| ExtensionTargetDescriptor {
+            id: adapter.id().to_string(),
+            label: adapter.label().to_string(),
+            adapter_version: adapter.version().to_string(),
+            description: adapter.description().to_string(),
+            user_capabilities: adapter.capabilities(Scope::User),
+            project_capabilities: adapter.capabilities(Scope::Project),
+        })
+        .collect()
 }
 
 pub(super) fn resolve_paths(
@@ -79,6 +107,14 @@ impl ExtensionTargetAdapter for CursorAdapter {
 
     fn label(&self) -> &'static str {
         "Cursor"
+    }
+
+    fn version(&self) -> &'static str {
+        "1.0.0"
+    }
+
+    fn description(&self) -> &'static str {
+        "管理 Cursor MCP、Agent Skills 和项目级规则"
     }
 
     fn user_paths(&self, home: &Path) -> AdapterPaths {
@@ -170,6 +206,14 @@ impl ExtensionTargetAdapter for ClaudeCodeAdapter {
         "Claude Code"
     }
 
+    fn version(&self) -> &'static str {
+        "1.0.0"
+    }
+
+    fn description(&self) -> &'static str {
+        "管理 Claude Code MCP、Agent Skills 和个人或项目规则"
+    }
+
     fn user_paths(&self, home: &Path) -> AdapterPaths {
         AdapterPaths {
             mcp_config: home.join(".claude.json"),
@@ -252,6 +296,17 @@ mod tests {
         assert!(claude.prompt_editable(Scope::User));
         assert!(claude
             .capabilities(Scope::User)
+            .contains(&"prompts".to_string()));
+    }
+
+    #[test]
+    fn exposes_stable_descriptors_for_the_frontend() {
+        let descriptors = descriptors();
+        assert_eq!(descriptors.len(), 2);
+        assert_eq!(descriptors[0].id, "cursor");
+        assert_eq!(descriptors[0].adapter_version, "1.0.0");
+        assert!(descriptors[1]
+            .user_capabilities
             .contains(&"prompts".to_string()));
     }
 }
