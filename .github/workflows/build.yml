@@ -110,9 +110,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version '^2' --locked
-
       - name: Import Apple signing certificate
         if: env.APPLE_CERTIFICATE != ''
         uses: apple-actions/import-codesign-certs@v3
@@ -123,26 +120,31 @@ jobs:
       - name: Test Node.js core
         shell: bash
         run: |
-          set -o pipefail
-          npm test 2>&1 | tee node-test.log
-          status=${PIPESTATUS[0]}
-          if (( status != 0 )); then
-            details=$(tail -n 80 node-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
-            echo "::error title=Node.js tests failed::$details"
-            exit "$status"
-          fi
+          set +e
+          for test_file in test/*.test.js; do
+            node --test "$test_file" 2>&1 | tee node-test.log
+            status=${PIPESTATUS[0]}
+            if (( status != 0 )); then
+              details=$(tail -n 120 node-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+              echo "::error file=$test_file,line=1,title=Node.js tests failed::$details"
+              exit "$status"
+            fi
+          done
 
       - name: Test Rust core
         shell: bash
         run: |
-          set -o pipefail
+          set +e
           cargo test --locked --manifest-path desktop-sample/src-tauri/Cargo.toml 2>&1 | tee rust-test.log
           status=${PIPESTATUS[0]}
           if (( status != 0 )); then
-            details=$(tail -n 80 rust-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            details=$(tail -n 120 rust-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
             echo "::error title=Rust tests failed::$details"
             exit "$status"
           fi
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version '^2' --locked
 
       - name: Build macOS workbench
         run: bash scripts/package-macos.sh
