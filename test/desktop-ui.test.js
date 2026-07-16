@@ -56,6 +56,7 @@ const release = fs.readFileSync(
 );
 const securityCheck = fs.readFileSync(path.join(root, 'scripts', 'security-check.js'), 'utf8');
 const buildWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build.yml'), 'utf8');
+const cursorCompatWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'cursor-compat.yml'), 'utf8');
 
 test('desktop UI exposes usage and backup history controls', () => {
   for (const id of [
@@ -369,4 +370,16 @@ test('desktop and package versions are synchronized', () => {
   assert.equal(tauriConfig.version, packageJson.version);
   assert.ok(cargo.split(/\r?\n/).includes(`version = "${packageJson.version}"`));
   assert.ok(html.includes(`v${packageJson.version}`));
+});
+
+test('Cursor compatibility workflow bounds and cleans silent installer execution', () => {
+  assert.match(cursorCompatWorkflow, /compatibility:\s*[\s\S]*?timeout-minutes:\s*45/);
+  assert.match(cursorCompatWorkflow, /Download and install official Cursor build\s*\n\s*timeout-minutes:\s*15/);
+  assert.match(cursorCompatWorkflow, /Start-Process[^\n]+-PassThru\s*$/m);
+  assert.doesNotMatch(cursorCompatWorkflow, /Start-Process[^\n]+-Wait/);
+  assert.match(cursorCompatWorkflow, /\[DateTime\]::UtcNow\.AddMinutes\(12\)/);
+  assert.match(cursorCompatWorkflow, /candidate\.version[^\n]+release\.version/);
+  assert.match(cursorCompatWorkflow, /candidate\.commit[^\n]+release\.commit/);
+  assert.match(cursorCompatWorkflow, /taskkill\.exe \/PID \$process\.Id \/T \/F/);
+  assert.match(cursorCompatWorkflow, /needs\.compatibility\.result != 'success'/);
 });

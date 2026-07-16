@@ -28,7 +28,7 @@ jobs:
       download_url: ${{ steps.release.outputs.download_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Detect Cursor stable release
         id: release
@@ -54,14 +54,15 @@ jobs:
     if: needs.detect.outputs.changed == 'true'
     needs: detect
     runs-on: windows-latest
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -90,6 +91,7 @@ jobs:
           }
 
       - name: Download and install official Cursor build
+        timeout-minutes: 15
         shell: pwsh
         run: |
           $release = Get-Content -LiteralPath 'build/cursor-release.json' -Raw | ConvertFrom-Json
@@ -105,23 +107,40 @@ jobs:
             throw "Unexpected Cursor installer signer: $subject"
           }
 
-          $process = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru -Wait
-          if ($process.ExitCode -ne 0) {
-            throw "Cursor installer failed with exit code $($process.ExitCode)"
-          }
           Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
-
           $appDir = Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app'
-          for ($attempt = 0; $attempt -lt 60 -and !(Test-Path -LiteralPath (Join-Path $appDir 'product.json')); $attempt++) {
-            Start-Sleep -Seconds 2
+          $productPath = Join-Path $appDir 'product.json'
+          $process = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru
+          $deadline = [DateTime]::UtcNow.AddMinutes(12)
+          $installedProduct = $null
+          try {
+            while ([DateTime]::UtcNow -lt $deadline) {
+              $process.Refresh()
+              if ($process.HasExited -and $process.ExitCode -ne 0) {
+                throw "Cursor installer failed with exit code $($process.ExitCode)"
+              }
+              if (Test-Path -LiteralPath $productPath -PathType Leaf) {
+                try {
+                  $candidate = Get-Content -LiteralPath $productPath -Raw | ConvertFrom-Json
+                  if ([string]$candidate.version -eq [string]$release.version -and [string]$candidate.commit -eq [string]$release.commit) {
+                    $installedProduct = $candidate
+                    break
+                  }
+                } catch {
+                  Write-Host "Cursor product.json is not ready yet: $($_.Exception.Message)"
+                }
+              }
+              Start-Sleep -Seconds 3
+            }
+          } finally {
+            $process.Refresh()
+            if (!$process.HasExited) {
+              & taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
+            }
+            Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
           }
-          if (!(Test-Path -LiteralPath (Join-Path $appDir 'product.json'))) {
-            throw "Cursor resources/app was not installed at $appDir"
-          }
-
-          $product = Get-Content -LiteralPath (Join-Path $appDir 'product.json') -Raw | ConvertFrom-Json
-          if ([string]$product.version -ne [string]$release.version -or [string]$product.commit -ne [string]$release.commit) {
-            throw "Installed Cursor identity $($product.version)/$($product.commit) does not match official metadata $($release.version)/$($release.commit)"
+          if ($null -eq $installedProduct) {
+            throw "Cursor $($release.version) was not installed with the expected commit within 12 minutes"
           }
           "CURSOR_APP_DIR=$appDir" | Add-Content -LiteralPath $env:GITHUB_ENV
           "CURSOR_INSTALLER_SIGNER=$subject" | Add-Content -LiteralPath $env:GITHUB_ENV
@@ -207,7 +226,7 @@ jobs:
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
 
   report-failure:
-    if: always() && needs.detect.outputs.changed == 'true' && needs.compatibility.result == 'failure'
+    if: always() && needs.detect.outputs.changed == 'true' && needs.compatibility.result != 'success'
     needs:
       - detect
       - compatibility
@@ -220,11 +239,13 @@ jobs:
         env:
           CURSOR_VERSION: ${{ needs.detect.outputs.version }}
           CURSOR_COMMIT: ${{ needs.detect.outputs.commit }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
         with:
           script: |
             const title = `Cursor ${process.env.CURSOR_VERSION} 自动兼容构建失败`;
             const body = [
               `Cursor stable ${process.env.CURSOR_VERSION} (${process.env.CURSOR_COMMIT}) 未通过自动兼容构建.`,
+              `任务结果: ${process.env.COMPATIBILITY_RESULT}.`,
               '',
               `运行记录: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               '',
