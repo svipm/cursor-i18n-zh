@@ -179,5 +179,50 @@
   "vs/workbench/contrib/terminalContrib/cursorPromptBar/browser/terminalPromptBarContextKeys#terminalPromptBarCanCancelGeneration": "终端提示栏生成是否可以取消",
   "vs/workbench/contrib/terminalContrib/cursorPromptBar/browser/terminalPromptBarContextKeys#terminalPromptBarCanRejectGeneration": "终端提示栏生成的命令是否可以拒绝",
 
+  "vs/editor/contrib/cursorUndo/browser/cursorUndo#cursor.undo": "Cursor 撤销",
+  "vs/editor/contrib/cursorUndo/browser/cursorUndo#cursor.redo": "Cursor 重做",
+
+  "vs/workbench/contrib/appLayout/electron-sandbox/glassModeActions#cursor.openGlassAndStartCloudAgent": "打开智能体窗口并启动云端智能体",
+
+  "vs/workbench/contrib/composer/browser/transcript/composerTranscriptToolRuntime#composerTranscript.openFileFailed": "无法打开 {0}",
+  "vs/workbench/contrib/cursorAiFeedback/browser/aiFeedbackActions#miGiveFeedback": "提供反馈(&&F)...",
+
+  "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInWindows": "在文件资源管理器中显示",
+  "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInMac": "在 Finder 中显示",
+  "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatOpenContainer": "打开所在文件夹",
+  "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatFileAddToChat": "添加到聊天",
+  "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#copyPath": "复制路径",
+
+  "vs/workbench/contrib/cursorBlame/browser/aiBlameHover.contribution#cursorBlameConfigurationTitle": "Cursor 代码归因",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlame.category": "Cursor 代码归因",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlame.explorerContextMenu": "Cursor 代码归因",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlameSubmenu": "Cursor 代码归因",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlameConfigurationTitle": "Cursor 代码归因",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlameFileDecoration#cursorBlame": "Cursor 代码归因",
+
+  "vs/workbench/contrib/cursorLocalTrace/browser/cursorLocalTrace.contribution#cursorLocalTraceModeConfigurationTitle": "本地跟踪模式",
+  "vs/workbench/contrib/cursorLocalTrace/browser/cursorLocalTrace.contribution#cursorLocalTraceMode.settingTitle": "本地跟踪模式",
+
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#toggleMarkdownPlanEditorMode": "切换编辑器模式",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#markdownPlanEditor": "Markdown 计划编辑器",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#acceptPlan": "构建计划",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#find": "查找",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#findNext": "查找下一个",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#findPrevious": "查找上一个",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/markdownPlanEditorActions#closeFindWidget": "关闭查找组件",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/usePlanEditorState#markdownPlanEditor.fileChangedWhileDirty": "文件内容较新。你要用当前更改覆盖文件, 还是还原当前更改?",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/usePlanEditorState#overwrite": "覆盖",
+  "vs/workbench/contrib/cursorMarkdownPlanEditor/browser/usePlanEditorState#revert": "还原",
+
+  "vs/workbench/contrib/cursorOrigin/browser/cursorOrigin.contribution#cursorOrigin.category": "Cursor 来源",
+
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentActions": "外部智能体操作",
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentSecondOpinion": "第二意见",
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentAsk": "侧边聊天",
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentAsk.menu": "侧边聊天",
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentSecondOpinion.menu": "第二意见",
+  "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentActions.title": "外部智能体操作",
+
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursorAuthConfigurationTitle": "Cursor 认证",
   "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedTeamId": "指定用户必须所属的团队 ID 才能使用 Cursor。设置后，如果已登录用户不属于该团队，Cursor 会自动将其退出登录。"
 }
