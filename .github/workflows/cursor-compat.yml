@@ -108,12 +108,24 @@ jobs:
           }
 
           Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
-          $appDir = Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app'
+          $installRoot = Join-Path $env:RUNNER_TEMP "cursor-stable-$($release.version)"
+          $installerLog = Join-Path $env:RUNNER_TEMP "cursor-install-$($release.version).log"
+          $appDir = Join-Path $installRoot 'resources\app'
           $productPath = Join-Path $appDir 'product.json'
-          $installerArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
+          $installerArguments = @(
+            '/VERYSILENT',
+            '/SUPPRESSMSGBOXES',
+            '/NORESTART',
+            '/SP-',
+            '/NOICONS',
+            '/CURRENTUSER',
+            "/DIR=$installRoot",
+            "/LOG=$installerLog"
+          )
           $process = Start-Process -FilePath $installer -ArgumentList $installerArguments -PassThru
           $deadline = [DateTime]::UtcNow.AddMinutes(12)
           $installedProduct = $null
+          $lastIdentity = ''
           try {
             while ([DateTime]::UtcNow -lt $deadline) {
               $process.Refresh()
@@ -123,6 +135,11 @@ jobs:
               if (Test-Path -LiteralPath $productPath -PathType Leaf) {
                 try {
                   $candidate = Get-Content -LiteralPath $productPath -Raw | ConvertFrom-Json
+                  $identity = "$($candidate.version)/$($candidate.commit)"
+                  if ($identity -ne $lastIdentity) {
+                    Write-Host "Detected installed Cursor identity: $identity"
+                    $lastIdentity = $identity
+                  }
                   if ([string]$candidate.version -eq [string]$release.version -and [string]$candidate.commit -eq [string]$release.commit) {
                     $installedProduct = $candidate
                     break
@@ -139,9 +156,13 @@ jobs:
               & taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
             }
             Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
+            if ($null -eq $installedProduct -and (Test-Path -LiteralPath $installerLog -PathType Leaf)) {
+              Write-Host 'Cursor installer log tail:'
+              Get-Content -LiteralPath $installerLog -Tail 160
+            }
           }
           if ($null -eq $installedProduct) {
-            throw "Cursor $($release.version) was not installed with the expected commit within 12 minutes"
+            throw "Cursor $($release.version) was not installed with the expected commit within 12 minutes. Last identity: $lastIdentity"
           }
           "CURSOR_APP_DIR=$appDir" | Add-Content -LiteralPath $env:GITHUB_ENV
           "CURSOR_INSTALLER_SIGNER=$subject" | Add-Content -LiteralPath $env:GITHUB_ENV

@@ -377,7 +377,13 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /Download and install official Cursor build\s*\n\s*timeout-minutes:\s*15/);
   assert.match(cursorCompatWorkflow, /Start-Process[^\n]+-PassThru\s*$/m);
   assert.doesNotMatch(cursorCompatWorkflow, /Start-Process[^\n]+-Wait/);
-  assert.match(cursorCompatWorkflow, /'\/VERYSILENT', '\/SUPPRESSMSGBOXES', '\/NORESTART', '\/SP-'/);
+  for (const flag of ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOICONS', '/CURRENTUSER']) {
+    assert.ok(cursorCompatWorkflow.includes(`'${flag}'`));
+  }
+  assert.match(cursorCompatWorkflow, /"\/DIR=\$installRoot"/);
+  assert.match(cursorCompatWorkflow, /"\/LOG=\$installerLog"/);
+  assert.match(cursorCompatWorkflow, /Detected installed Cursor identity/);
+  assert.match(cursorCompatWorkflow, /Get-Content[^\n]+\$installerLog -Tail 160/);
   assert.match(cursorCompatWorkflow, /\[DateTime\]::UtcNow\.AddMinutes\(12\)/);
   assert.match(cursorCompatWorkflow, /candidate\.version[^\n]+release\.version/);
   assert.match(cursorCompatWorkflow, /candidate\.commit[^\n]+release\.commit/);
