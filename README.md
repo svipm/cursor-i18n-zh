@@ -105,15 +105,20 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 ### Cursor 与 Claude Code 扩展管理
 
 - 管理 Cursor 和 Claude Code 的用户级或项目级 MCP, 支持 stdio、HTTP 和 SSE.
-- 支持添加、编辑、启用、停用和删除 MCP 服务, 修改前自动备份原配置.
+- 支持添加、编辑、启用、停用和删除 MCP 服务, 并可真实启动 stdio 服务或请求 HTTP/SSE 端点执行 MCP `initialize` 健康检测.
 - 管理 `~/.cursor/skills`, `~/.claude/skills` 以及项目内 `.cursor/skills`, `.claude/skills`.
 - Cursor 内置 `skills-cursor` 和自动发现的 Claude 兼容 Skill 只读展示, 防止误删上游资源.
 - 支持创建和编辑 `SKILL.md`, 停用时移动到独立目录, 删除时移动到工作台回收目录.
 - 新增提示词规则管理. Cursor 项目规则使用 `.cursor/rules/*.mdc`; Claude Code 项目规则和官方个人规则使用 `.claude/rules/*.md`.
 - Cursor 全局 User Rules 由 `Customize > Rules` 管理且没有公开文件格式. 工作台不会修改 Cursor 私有数据库, 在用户级作用域会明确提示切换到项目级.
 - 新增精选扩展市场, 可以浏览并安装 MCP, Skill 和提示词模板.
-- 市场安装会记录 GitHub 仓库和提交版本. 已安装项目可以打开对应仓库, 检查是否存在更新, 市场项目支持一键更新.
+- 市场项目显示官方、已验证社区或社区来源及许可证. 安装会固定到实际 GitHub 提交并记录完整内容哈希.
+- 已安装项目可以打开对应仓库并检查更新. 如果内容已被本地修改, 默认拒绝市场覆盖, 只有用户明确确认后才允许更新.
 - Skill 市场按固定 GitHub 提交递归下载完整 Skill 子目录, 包括 `scripts`, `references` 和资源文件, 并限制文件数量与总大小.
+- Skill 会检查 frontmatter、本地引用、脚本、网络访问、Shell 和外部进程能力, 展示风险等级、目录 SHA256 和来源固定状态.
+- 每次扩展修改前创建包含 MCP, 完整 Skill 目录, 提示词和来源注册表的结构化快照, 显示 added/modified/deleted 差异并支持一键恢复.
+- 支持搜索、状态与风险筛选、批量启停, 并在首页和导航中提示异常 MCP、高风险 Skill 或本地修改.
+- 支持 Cursor 与 Claude Code 之间复制 MCP, Skill 和提示词, 自动转换目标格式; 支持脱敏配置包和明确警告的私密配置包导入导出.
 - 非市场安装但带有 GitHub 来源的项目也会展示仓库. 缺少已安装提交记录时显示“版本未知”, GitHub 请求失败时显示“检查失败”, 不伪报为最新.
 
 ## 核心能力
@@ -126,7 +131,7 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 - 使用暂存文件统一提交修改. 任一步写入或复验失败时自动回滚已经提交的文件.
 - 在界面中检测 Node.js 版本, 管理员权限, 应用兼容状态和备份状态.
 - 首次启动先显示软件声明与隐私说明. 用户同意前不扫描本机应用, 不读取用量, 不检查版本.
-- 启动后可选检查 GitHub 最新正式版本, 只提示更新, 不自动下载, 不静默安装, 不强制更新.
+- 启动后可选检查 GitHub 最新正式版本. 用户可以手动下载官方 Release 更新包, 工作台会校验 SHA256 后打开所在目录, 不静默安装, 不强制更新.
 - 在独立扩展管理页维护 Cursor 与 Claude Code 的 MCP, Skill 和提示词, 支持用户级与项目级作用域及 GitHub 更新检查.
 - 扩展检查与市场安装显示统一进度反馈, 键盘支持 Esc 关闭弹窗和方向键切换 Tab, 并为焦点和减少动态效果提供无障碍适配.
 
@@ -135,14 +140,14 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 从 [最新发行版](https://github.com/svipm/cursor-i18n-zh/releases/latest) 下载推荐的完整便携包:
 
 ```text
-localization-workbench-v0.3.8-windows.zip
+localization-workbench-v0.3.9-windows.zip
 ```
 
 执行步骤:
 
 1. 解压完整 ZIP, 不要只移动其中的 EXE.
 2. 如果要汉化 Cursor, 先安装 Node.js 18 或更高版本.
-3. 双击 `localization-workbench-v0.3.8.exe`.
+3. 双击 `localization-workbench-v0.3.9.exe`.
 4. 阅读并同意首次启动声明与隐私说明.
 5. 打开“备份”页, 为目标应用创建并校验当前版本原始备份.
 6. 打开“软件中心”, 选择目标语言并安装汉化.
@@ -200,8 +205,8 @@ Claude Desktop 适配流程:
 
 macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 
-- `localization-workbench-v0.3.8-macos.dmg`: 推荐安装包.
-- `localization-workbench-v0.3.8-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
+- `localization-workbench-v0.3.9-macos.dmg`: 推荐安装包.
+- `localization-workbench-v0.3.9-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
 - 默认构建 Universal Binary, 同时包含 Apple Silicon `arm64` 和 Intel `x86_64`.
 - 从 Finder 启动时会定位 PATH, Homebrew, NVM, Volta, asdf, mise 和 fnm 中的 Node.js, 并使用检测到的实际可执行文件运行 Cursor 引擎.
 - 自动定位 `/Applications/Cursor.app/Contents/Resources/app` 和 `/Applications/Claude.app/Contents/Resources`.
@@ -218,14 +223,16 @@ macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 - Claude Code 用户级 MCP: `%USERPROFILE%\.claude.json`.
 - Cursor 项目级 MCP: `<工作区>\.cursor\mcp.json`.
 - Claude Code 项目级 MCP: `<工作区>\.mcp.json`.
-- MCP 环境变量、HTTP 请求头和 URL 凭据不会以明文返回前端, 编辑时使用 `••••••` 保留原值.
+- MCP 环境变量、HTTP 请求头和 URL 凭据不会以明文返回前端, 编辑时使用 `••••••` 保留原值, 健康检测诊断同样不会输出密钥.
 - MCP 的 GitHub 来源和安装提交记录保存在工作台独立 `extension-registry` sidecar, 不向 Cursor 或 Claude 的标准 MCP 对象添加私有字段.
-- 配置修改前备份到 `%LOCALAPPDATA%\I18nWorkbench\extension-config-backups`.
+- 配置修改前完整快照保存到 `%LOCALAPPDATA%\I18nWorkbench\extension-history`, 最多保留 100 条; 恢复前会先快照当前状态.
 - 停用 MCP 会将完整配置移动到独立的 `mcp.disabled.json`, 密钥不会经过前端或日志.
 - 删除 Skill 不会直接销毁目录, 而是移动到 `%LOCALAPPDATA%\I18nWorkbench\extension-trash`.
 - Windows 工作台数据位于 `%LOCALAPPDATA%\I18nWorkbench`, macOS 位于 `~/Library/Application Support/I18nWorkbench`.
 - 提示词停用时移动到独立目录, 删除时同样进入工作台回收目录.
-- 市场只接受清单内经过校验的 GitHub 仓库首页和 GitHub Raw Skill 地址. MCP 密钥不会进入市场请求.
+- 市场只接受清单内经过校验的 GitHub 仓库首页和 GitHub Raw Skill 地址. 内容写入和来源登记在同一个可回滚事务内, MCP 密钥不会进入市场请求.
+- 为防止目录逃逸和不完整备份, Skill 审计、迁移和历史快照拒绝跟随符号链接.
+- 脱敏配置包不会写入密钥. 私密配置包包含 MCP 环境变量和请求头, 仅应保存在可信位置; macOS 和 Linux 会将文件权限限制为 `0600`.
 
 ## Cursor 用量与隐私
 
@@ -242,6 +249,7 @@ macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 ```powershell
 npm ci
 npm test
+npm run security-check
 npm run dict-check
 npm run check -- --locale zh-cn
 npm run check -- --locale zh-tw
@@ -268,14 +276,14 @@ cargo build --release --locked --manifest-path desktop-sample/src-tauri/Cargo.to
 npm run package-desktop
 ```
 
-GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成 EXE 与便携 ZIP, macOS 生成 `.app.zip` 与 DMG, 两个平台分别生成 SHA256. `cursor-compat.yml` 额外监控 Cursor 官方稳定版并自动生成兼容性构建. 推送 `v*` 标签时自动合并两个平台产物并创建 GitHub Release.
+GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成 EXE 与便携 ZIP, macOS 生成 `.app.zip` 与 DMG, 两个平台分别生成 SHA256. 发布前执行敏感信息扫描. 配置 `WINDOWS_CERTIFICATE` 和 `WINDOWS_CERTIFICATE_PASSWORD` 后会执行 Windows Authenticode SHA256 签名与时间戳校验. `cursor-compat.yml` 额外监控 Cursor 官方稳定版并自动生成兼容性构建. 推送 `v*` 标签时自动合并两个平台产物并创建 GitHub Release.
 
 ## 发布产物
 
-- `localization-workbench-v0.3.8-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
-- `localization-workbench-v0.3.8.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
-- `localization-workbench-v0.3.8-macos.dmg`: macOS 推荐安装包.
-- `localization-workbench-v0.3.8-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
+- `localization-workbench-v0.3.9-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
+- `localization-workbench-v0.3.9.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `localization-workbench-v0.3.9-macos.dmg`: macOS 推荐安装包.
+- `localization-workbench-v0.3.9-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
 - `cursor-i18n-zh-windows.zip`: Cursor 终端版和传统入口.
 - `SHA256SUMS.txt`: 所有发布文件的 SHA256 校验值.
 

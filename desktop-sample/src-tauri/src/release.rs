@@ -1,9 +1,13 @@
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use ureq::Error;
 
+use crate::adapters::local_app_data;
 use crate::network;
 
 const LATEST_RELEASE_API: &str =
@@ -21,6 +25,14 @@ pub struct UpdateStatus {
     pub release_url: &'static str,
     pub published_at: Option<String>,
     pub message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDownloadResult {
+    pub version: String,
+    pub path: String,
+    pub sha256: String,
 }
 
 pub fn check_for_updates() -> Result<UpdateStatus, String> {
@@ -67,6 +79,137 @@ pub fn check_for_updates() -> Result<UpdateStatus, String> {
             .map(str::to_string),
         message,
     })
+}
+
+pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
+    let agent = network::platform_agent(Duration::from_secs(60));
+    let release = fetch_latest_release(&agent)?;
+    let tag = release
+        .get("tag_name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "GitHub 最新发行版缺少 tag_name".to_string())?;
+    let version = tag.trim().trim_start_matches(['v', 'V']).to_string();
+    if compare_versions(&version, env!("CARGO_PKG_VERSION")) != Some(Ordering::Greater) {
+        return Err("当前没有需要下载的新版本".to_string());
+    }
+    let asset_name = if cfg!(target_os = "macos") {
+        format!("localization-workbench-v{version}-macos.dmg")
+    } else {
+        format!("localization-workbench-v{version}-windows.zip")
+    };
+    let checksum_name = if cfg!(target_os = "macos") {
+        "SHA256SUMS-macos.txt"
+    } else {
+        "SHA256SUMS.txt"
+    };
+    let asset_url = release_asset_url(&release, &asset_name)?;
+    let checksum_url = release_asset_url(&release, checksum_name)?;
+    let checksum_text = download_bytes(&agent, &checksum_url, 1024 * 1024)?;
+    let checksum_text =
+        String::from_utf8(checksum_text).map_err(|_| "发行版 SHA256 文件不是 UTF-8".to_string())?;
+    let expected = checksum_for(&checksum_text, &asset_name)?;
+    let data = download_bytes(&agent, &asset_url, 250 * 1024 * 1024)?;
+    let actual = sha256_hex(&data);
+    if !actual.eq_ignore_ascii_case(&expected) {
+        return Err(format!(
+            "更新包 SHA256 校验失败, 期望 {expected}, 实际 {actual}"
+        ));
+    }
+    let root = local_app_data().join("updates").join(format!("v{version}"));
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("无法创建更新目录 {}: {error}", root.display()))?;
+    let path = root.join(&asset_name);
+    let temp = root.join(format!(".{asset_name}.tmp"));
+    fs::write(&temp, data)
+        .map_err(|error| format!("无法写入更新包 {}: {error}", temp.display()))?;
+    if path.exists() {
+        fs::remove_file(&path)
+            .map_err(|error| format!("无法覆盖旧更新包 {}: {error}", path.display()))?;
+    }
+    fs::rename(&temp, &path)
+        .map_err(|error| format!("无法提交更新包 {}: {error}", path.display()))?;
+    Ok(UpdateDownloadResult {
+        version,
+        path: path.display().to_string(),
+        sha256: actual,
+    })
+}
+
+pub fn validate_update_path(path: &Path) -> Result<PathBuf, String> {
+    let root = fs::canonicalize(local_app_data().join("updates"))
+        .map_err(|error| format!("更新目录不存在: {error}"))?;
+    let path = fs::canonicalize(path)
+        .map_err(|error| format!("更新包路径无效 {}: {error}", path.display()))?;
+    if !path.starts_with(&root) || !path.is_file() {
+        return Err("更新包路径不在工作台更新目录中".to_string());
+    }
+    Ok(path)
+}
+
+fn fetch_latest_release(agent: &ureq::Agent) -> Result<Value, String> {
+    let mut response = agent
+        .get(LATEST_RELEASE_API)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "cursor-i18n-zh-workbench")
+        .call()
+        .map_err(github_error)?;
+    response
+        .body_mut()
+        .read_json::<Value>()
+        .map_err(|error| format!("GitHub 版本响应格式错误: {error}"))
+}
+
+fn release_asset_url(release: &Value, name: &str) -> Result<String, String> {
+    release
+        .get("assets")
+        .and_then(Value::as_array)
+        .and_then(|assets| {
+            assets.iter().find_map(|asset| {
+                (asset.get("name").and_then(Value::as_str) == Some(name))
+                    .then(|| asset.get("browser_download_url").and_then(Value::as_str))
+                    .flatten()
+            })
+        })
+        .filter(|url| url.starts_with("https://github.com/svipm/cursor-i18n-zh/releases/download/"))
+        .map(str::to_string)
+        .ok_or_else(|| format!("发行版缺少更新资源: {name}"))
+}
+
+fn download_bytes(agent: &ureq::Agent, url: &str, limit: usize) -> Result<Vec<u8>, String> {
+    let mut response = agent
+        .get(url)
+        .header("User-Agent", "cursor-i18n-zh-workbench")
+        .call()
+        .map_err(github_error)?;
+    let data = response
+        .body_mut()
+        .with_config()
+        .limit((limit.saturating_add(1)) as u64)
+        .read_to_vec()
+        .map_err(|error| format!("读取更新资源失败: {error}"))?;
+    if data.len() > limit {
+        return Err(format!("更新资源超过大小限制: {} MB", limit / 1024 / 1024));
+    }
+    Ok(data)
+}
+
+fn checksum_for(content: &str, name: &str) -> Result<String, String> {
+    content
+        .lines()
+        .filter_map(|line| line.split_once("  "))
+        .find(|(_, file)| file.trim_start_matches('*').trim() == name)
+        .map(|(checksum, _)| checksum.trim().to_string())
+        .filter(|checksum| {
+            checksum.len() == 64 && checksum.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+        .ok_or_else(|| format!("SHA256 文件缺少更新资源记录: {name}"))
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    Sha256::digest(data)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn github_error(error: Error) -> String {
@@ -128,6 +271,25 @@ mod tests {
     fn rejects_invalid_release_versions() {
         assert_eq!(parse_version("latest"), None);
         assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn selects_only_expected_release_assets_and_checksums() {
+        let release = serde_json::json!({
+            "assets": [{
+                "name": "package.zip",
+                "browser_download_url": "https://github.com/svipm/cursor-i18n-zh/releases/download/v1.0.0/package.zip"
+            }]
+        });
+        assert!(release_asset_url(&release, "package.zip").is_ok());
+        assert_eq!(
+            checksum_for(
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  package.zip\n",
+                "package.zip"
+            )
+            .unwrap(),
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
     }
 
     #[test]

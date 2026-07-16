@@ -9,6 +9,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::adapters::{local_app_data, restore_user_ownership};
 
+mod health;
+mod history;
+mod security;
+mod targets;
+mod transfer;
+
+pub use health::McpHealthResult;
+pub use history::ExtensionHistoryRecord;
+pub use security::SkillAudit;
+pub use transfer::TransferPreview;
+
 const REDACTED_VALUE: &str = "••••••";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -38,6 +49,7 @@ pub struct ExtensionInventory {
     pub prompt_editable: bool,
     pub prompt_note: String,
     pub note: String,
+    pub capabilities: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -53,6 +65,7 @@ pub struct McpServerSummary {
     pub source: String,
     pub repository: Option<String>,
     pub revision: Option<String>,
+    pub local_modified: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -87,6 +100,8 @@ pub struct SkillSummary {
     pub path: String,
     pub repository: Option<String>,
     pub revision: Option<String>,
+    pub audit: SkillAudit,
+    pub local_modified: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -100,6 +115,8 @@ pub struct PromptSummary {
     pub path: String,
     pub repository: Option<String>,
     pub revision: Option<String>,
+    pub sha256: String,
+    pub local_modified: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -159,6 +176,85 @@ pub struct McpToggleRequest {
     #[serde(flatten)]
     pub query: ExtensionQuery,
     pub name: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHealthRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHistoryRestoreRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionExportRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub path: String,
+    #[serde(default)]
+    pub include_secrets: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionImportPreviewRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionImportRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub path: String,
+    pub conflict_policy: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionCopyPreviewRequest {
+    pub source: ExtensionQuery,
+    pub destination: ExtensionQuery,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionCopyRequest {
+    pub source: ExtensionQuery,
+    pub destination: ExtensionQuery,
+    pub conflict_policy: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionExportResult {
+    pub path: String,
+    pub includes_secrets: bool,
+    pub mcp_count: usize,
+    pub skill_count: usize,
+    pub prompt_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionBatchRequest {
+    #[serde(flatten)]
+    pub query: ExtensionQuery,
+    pub kind: String,
+    #[serde(default)]
+    pub names: Vec<String>,
     pub enabled: bool,
 }
 
@@ -262,12 +358,18 @@ struct ExtensionPaths {
 struct ExtensionRegistry {
     #[serde(default)]
     mcp: BTreeMap<String, RegistryOrigin>,
+    #[serde(default)]
+    skills: BTreeMap<String, RegistryOrigin>,
+    #[serde(default)]
+    prompts: BTreeMap<String, RegistryOrigin>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct RegistryOrigin {
     repository: String,
     revision: String,
+    #[serde(default)]
+    content_sha256: Option<String>,
 }
 
 pub fn inventory(query: ExtensionQuery) -> Result<ExtensionInventory, String> {
@@ -288,17 +390,715 @@ pub fn mcp_details(request: McpLookupRequest) -> Result<McpServerDetails, String
     Err(format!("未找到 MCP 服务: {}", request.name))
 }
 
+pub fn check_mcp_health(request: McpHealthRequest) -> Result<McpHealthResult, String> {
+    let home = home_dir()?;
+    let paths = resolve_paths(&request.query, &home)?;
+    validate_mcp_name(&request.name)?;
+    let active = load_document(&paths.mcp_config)?;
+    let disabled = load_document(&paths.mcp_disabled)?;
+    let (value, enabled) = if let Some(value) = server_map(&active).get(&request.name) {
+        (value, true)
+    } else if let Some(value) = server_map(&disabled).get(&request.name) {
+        (value, false)
+    } else {
+        return Err(format!("未找到 MCP 服务: {}", request.name));
+    };
+    let summary = summary_from_value(&request.name, value, enabled, paths.scope);
+    let object = value.as_object();
+    let string_map = |field: &str| {
+        object
+            .and_then(|map| map.get(field))
+            .and_then(Value::as_object)
+            .map(|map| {
+                map.iter()
+                    .filter_map(|(key, value)| {
+                        value.as_str().map(|value| (key.clone(), value.to_string()))
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .unwrap_or_default()
+    };
+    Ok(health::check(health::McpRuntimeConfig {
+        name: request.name,
+        transport: summary.transport,
+        command: object
+            .and_then(|map| map.get("command"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        url: object
+            .and_then(|map| map.get("url"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        args: object
+            .and_then(|map| map.get("args"))
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        env: string_map("env"),
+        headers: string_map("headers"),
+        enabled,
+        workspace: paths.workspace.or(Some(home)),
+    }))
+}
+
+pub fn extension_history(query: ExtensionQuery) -> Result<Vec<ExtensionHistoryRecord>, String> {
+    let home = home_dir()?;
+    history::list(&history_context(&query, &home)?)
+}
+
+pub fn restore_extension_history(
+    request: ExtensionHistoryRestoreRequest,
+) -> Result<ExtensionMutationResult, String> {
+    let home = home_dir()?;
+    let context = history_context(&request.query, &home)?;
+    let record = history::restore(&context, &request.id)?;
+    repair_extension_ownership(&request.query, &home);
+    let inventory = inventory_with_home(request.query, &home)?;
+    Ok(ExtensionMutationResult {
+        message: format!(
+            "扩展配置已恢复, 本次恢复记录包含 {} 项变更",
+            record.changes.len()
+        ),
+        inventory,
+    })
+}
+
+pub fn export_extension_bundle(
+    request: ExtensionExportRequest,
+) -> Result<ExtensionExportResult, String> {
+    let home = home_dir()?;
+    let bundle = bundle_from_query(&request.query, &home, request.include_secrets)?;
+    let path = PathBuf::from(request.path.trim());
+    transfer::write_bundle(&path, &bundle)?;
+    restore_user_ownership(&path);
+    Ok(ExtensionExportResult {
+        path: path.display().to_string(),
+        includes_secrets: bundle.includes_secrets,
+        mcp_count: bundle.mcp_servers.len(),
+        skill_count: bundle.skills.len(),
+        prompt_count: bundle.prompts.len(),
+    })
+}
+
+pub fn preview_extension_import(
+    request: ExtensionImportPreviewRequest,
+) -> Result<TransferPreview, String> {
+    let home = home_dir()?;
+    let bundle = transfer::read_bundle(Path::new(request.path.trim()))?;
+    preview_bundle(&bundle, &request.query, &home)
+}
+
+pub fn import_extension_bundle(
+    request: ExtensionImportRequest,
+) -> Result<ExtensionMutationResult, String> {
+    let home = home_dir()?;
+    let bundle = transfer::read_bundle(Path::new(request.path.trim()))?;
+    let query = request.query.clone();
+    let summary = format!(
+        "导入 {} 的扩展配置包",
+        if bundle.source_target == "cursor" {
+            "Cursor"
+        } else {
+            "Claude Code"
+        }
+    );
+    let result = mutate_with_history(&query, &home, "import", &summary, || {
+        apply_bundle(&bundle, &query, &home, &request.conflict_policy)
+    });
+    repair_extension_ownership(&query, &home);
+    result
+}
+
+pub fn preview_extension_copy(
+    request: ExtensionCopyPreviewRequest,
+) -> Result<TransferPreview, String> {
+    let home = home_dir()?;
+    let bundle = bundle_from_query(&request.source, &home, true)?;
+    preview_bundle(&bundle, &request.destination, &home)
+}
+
+pub fn copy_extensions(request: ExtensionCopyRequest) -> Result<ExtensionMutationResult, String> {
+    let home = home_dir()?;
+    let bundle = bundle_from_query(&request.source, &home, true)?;
+    let destination = request.destination.clone();
+    let summary = format!(
+        "从 {} 复制扩展到 {}",
+        if bundle.source_target == "cursor" {
+            "Cursor"
+        } else {
+            "Claude Code"
+        },
+        if destination.target == "cursor" {
+            "Cursor"
+        } else {
+            "Claude Code"
+        }
+    );
+    let result = mutate_with_history(&destination, &home, "copy", &summary, || {
+        apply_bundle(&bundle, &destination, &home, &request.conflict_policy)
+    });
+    repair_extension_ownership(&destination, &home);
+    result
+}
+
+pub fn batch_toggle_extensions(
+    request: ExtensionBatchRequest,
+) -> Result<ExtensionMutationResult, String> {
+    let home = home_dir()?;
+    let query = request.query.clone();
+    let mut names = request.names.clone();
+    names.sort();
+    names.dedup();
+    if names.is_empty() || names.len() > 100 {
+        return Err("批量操作必须选择 1 到 100 个项目".to_string());
+    }
+    let summary = format!(
+        "批量{} {} 个 {}",
+        if request.enabled { "启用" } else { "停用" },
+        names.len(),
+        request.kind
+    );
+    let result = mutate_with_history(&query, &home, "batch-toggle", &summary, || {
+        batch_toggle_with_home(&request, &names, &home)
+    });
+    repair_extension_ownership(&query, &home);
+    result
+}
+
+fn batch_toggle_with_home(
+    request: &ExtensionBatchRequest,
+    names: &[String],
+    home: &Path,
+) -> Result<ExtensionMutationResult, String> {
+    let paths = resolve_paths(&request.query, home)?;
+    match request.kind.as_str() {
+        "mcp" => {
+            let mut active = load_document(&paths.mcp_config)?;
+            let mut disabled = load_document(&paths.mcp_disabled)?;
+            for name in names {
+                validate_mcp_name(name)?;
+                let value = if request.enabled {
+                    remove_server(&mut disabled, name)
+                } else {
+                    remove_server(&mut active, name)
+                };
+                if let Some(value) = value {
+                    server_map_mut(if request.enabled {
+                        &mut active
+                    } else {
+                        &mut disabled
+                    })?
+                    .insert(name.clone(), value);
+                }
+            }
+            commit_documents(&[
+                (&paths.mcp_config, &active),
+                (&paths.mcp_disabled, &disabled),
+            ])?;
+        }
+        "skill" => {
+            let (source_root, destination_root) = if request.enabled {
+                (&paths.skill_disabled_root, &paths.skill_root)
+            } else {
+                (&paths.skill_root, &paths.skill_disabled_root)
+            };
+            for name in names {
+                validate_skill_name(name, "Skill 名称")?;
+                let source = source_root.join(name);
+                let destination = destination_root.join(name);
+                if source.exists() && destination.exists() {
+                    return Err(format!("目标 Skill 已存在: {}", destination.display()));
+                }
+            }
+            fs::create_dir_all(destination_root)
+                .map_err(|error| format!("无法创建 Skill 目录: {error}"))?;
+            for name in names {
+                let source = source_root.join(name);
+                if source.is_dir() {
+                    fs::rename(&source, destination_root.join(name))
+                        .map_err(|error| format!("无法批量修改 Skill {name}: {error}"))?;
+                }
+            }
+        }
+        "prompt" => {
+            ensure_prompt_scope(&paths)?;
+            let (source_root, destination_root) = if request.enabled {
+                (&paths.prompt_disabled_root, &paths.prompt_root)
+            } else {
+                (&paths.prompt_root, &paths.prompt_disabled_root)
+            };
+            for name in names {
+                validate_skill_name(name, "提示词名称")?;
+                let source = prompt_file(source_root, name, paths.target);
+                let destination = prompt_file(destination_root, name, paths.target);
+                if source.exists() && destination.exists() {
+                    return Err(format!("目标提示词已存在: {}", destination.display()));
+                }
+            }
+            fs::create_dir_all(destination_root)
+                .map_err(|error| format!("无法创建提示词目录: {error}"))?;
+            for name in names {
+                let source = prompt_file(source_root, name, paths.target);
+                if source.is_file() {
+                    fs::rename(&source, prompt_file(destination_root, name, paths.target))
+                        .map_err(|error| format!("无法批量修改提示词 {name}: {error}"))?;
+                }
+            }
+        }
+        other => return Err(format!("不支持批量操作的扩展类型: {other}")),
+    }
+    let inventory = inventory_with_home(request.query.clone(), home)?;
+    Ok(ExtensionMutationResult {
+        message: format!(
+            "已批量{} {} 个项目",
+            if request.enabled { "启用" } else { "停用" },
+            names.len()
+        ),
+        inventory,
+    })
+}
+
+fn bundle_from_query(
+    query: &ExtensionQuery,
+    home: &Path,
+    include_secrets: bool,
+) -> Result<transfer::ExtensionBundle, String> {
+    let paths = resolve_paths(query, home)?;
+    let active = load_document(&paths.mcp_config)?;
+    let disabled = load_document(&paths.mcp_disabled)?;
+    let registry = load_registry(&paths);
+    let mut mcp_servers = Vec::new();
+    for (enabled, document) in [(true, &active), (false, &disabled)] {
+        for (name, value) in server_map(document) {
+            let mut value = value.clone();
+            if !include_secrets {
+                redact_mcp_value(&mut value);
+            }
+            let origin = registry.mcp.get(name);
+            mcp_servers.push(transfer::BundleMcp {
+                name: name.clone(),
+                enabled,
+                repository: origin
+                    .map(|value| value.repository.clone())
+                    .or_else(|| find_github_repository(&value)),
+                revision: origin.map(|value| value.revision.clone()),
+                value,
+            });
+        }
+    }
+    mcp_servers.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut skills = Vec::new();
+    for (enabled, root) in [
+        (true, &paths.skill_root),
+        (false, &paths.skill_disabled_root),
+    ] {
+        if !root.exists() {
+            continue;
+        }
+        for entry in fs::read_dir(root)
+            .map_err(|error| format!("无法读取 Skill 目录 {}: {error}", root.display()))?
+            .flatten()
+        {
+            let path = entry.path();
+            if !path.is_dir() || !path.join("SKILL.md").is_file() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            validate_skill_name(&name, "Skill 名称")?;
+            skills.push(transfer::BundleSkill {
+                name,
+                enabled,
+                files: transfer::collect_directory(&path)?,
+            });
+        }
+    }
+    skills.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut prompts = Vec::new();
+    if targets::adapter(paths.target).prompt_editable(paths.scope) {
+        for (enabled, root) in [
+            (true, &paths.prompt_root),
+            (false, &paths.prompt_disabled_root),
+        ] {
+            if !root.exists() {
+                continue;
+            }
+            for entry in fs::read_dir(root)
+                .map_err(|error| format!("无法读取提示词目录 {}: {error}", root.display()))?
+                .flatten()
+            {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = path
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                prompts.push(transfer::BundlePrompt {
+                    name,
+                    enabled,
+                    content: fs::read_to_string(&path)
+                        .map_err(|error| format!("无法读取提示词 {}: {error}", path.display()))?,
+                });
+            }
+        }
+    }
+    prompts.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(transfer::new_bundle(
+        target_id(paths.target).to_string(),
+        scope_id(paths.scope).to_string(),
+        include_secrets,
+        mcp_servers,
+        skills,
+        prompts,
+    ))
+}
+
+fn preview_bundle(
+    bundle: &transfer::ExtensionBundle,
+    destination: &ExtensionQuery,
+    home: &Path,
+) -> Result<TransferPreview, String> {
+    let paths = resolve_paths(destination, home)?;
+    let active = load_document(&paths.mcp_config)?;
+    let disabled = load_document(&paths.mcp_disabled)?;
+    let mut conflicts = Vec::new();
+    for server in &bundle.mcp_servers {
+        if let Some(existing) = server_map(&active)
+            .get(&server.name)
+            .or_else(|| server_map(&disabled).get(&server.name))
+        {
+            let incoming = normalize_server_for_target(&server.value, paths.target);
+            conflicts.push(transfer::TransferConflict {
+                kind: "mcp".to_string(),
+                name: server.name.clone(),
+                summary: if existing == &incoming {
+                    "同名 MCP 配置内容相同".to_string()
+                } else {
+                    "同名 MCP 配置不同, 需要明确选择覆盖或跳过".to_string()
+                },
+            });
+        }
+    }
+    for skill in &bundle.skills {
+        let existing = paths.skill_root.join(&skill.name);
+        let existing_disabled = paths.skill_disabled_root.join(&skill.name);
+        let existing = if existing.is_dir() {
+            Some(existing)
+        } else if existing_disabled.is_dir() {
+            Some(existing_disabled)
+        } else {
+            None
+        };
+        if let Some(existing) = existing {
+            let same = transfer::collect_directory(&existing)
+                .map(|files| files == skill.files)
+                .unwrap_or(false);
+            conflicts.push(transfer::TransferConflict {
+                kind: "skill".to_string(),
+                name: skill.name.clone(),
+                summary: if same {
+                    "同名 Skill 完整目录内容相同".to_string()
+                } else {
+                    "同名 Skill 目录不同, 需要明确选择覆盖或跳过".to_string()
+                },
+            });
+        }
+    }
+    if !bundle.prompts.is_empty() && !targets::adapter(paths.target).prompt_editable(paths.scope) {
+        conflicts.push(transfer::TransferConflict {
+            kind: "unsupported".to_string(),
+            name: "Cursor User Rules".to_string(),
+            summary: "Cursor 用户级提示词没有公开文件格式, 请改用项目级目标".to_string(),
+        });
+    } else {
+        for prompt in &bundle.prompts {
+            let active = prompt_file(&paths.prompt_root, &prompt.name, paths.target);
+            let disabled = prompt_file(&paths.prompt_disabled_root, &prompt.name, paths.target);
+            let existing = if active.is_file() {
+                Some(active)
+            } else if disabled.is_file() {
+                Some(disabled)
+            } else {
+                None
+            };
+            if let Some(existing) = existing {
+                let same = fs::read_to_string(&existing)
+                    .map(|content| content == prompt.content)
+                    .unwrap_or(false);
+                conflicts.push(transfer::TransferConflict {
+                    kind: "prompt".to_string(),
+                    name: prompt.name.clone(),
+                    summary: if same {
+                        "同名提示词内容相同".to_string()
+                    } else {
+                        "同名提示词内容不同, 需要明确选择覆盖或跳过".to_string()
+                    },
+                });
+            }
+        }
+    }
+    Ok(TransferPreview {
+        source_target: bundle.source_target.clone(),
+        destination_target: target_id(paths.target).to_string(),
+        mcp_count: bundle.mcp_servers.len(),
+        skill_count: bundle.skills.len(),
+        prompt_count: bundle.prompts.len(),
+        conflicts,
+        includes_secrets: bundle.includes_secrets,
+    })
+}
+
+fn apply_bundle(
+    bundle: &transfer::ExtensionBundle,
+    destination: &ExtensionQuery,
+    home: &Path,
+    conflict_policy: &str,
+) -> Result<ExtensionMutationResult, String> {
+    if !matches!(conflict_policy, "fail" | "skip" | "overwrite") {
+        return Err(format!("不支持的冲突策略: {conflict_policy}"));
+    }
+    let preview = preview_bundle(bundle, destination, home)?;
+    if preview
+        .conflicts
+        .iter()
+        .any(|conflict| conflict.kind == "unsupported")
+    {
+        return Err(preview
+            .conflicts
+            .iter()
+            .find(|conflict| conflict.kind == "unsupported")
+            .map(|conflict| conflict.summary.clone())
+            .unwrap_or_else(|| "目标不支持配置包中的内容".to_string()));
+    }
+    if conflict_policy == "fail" && !preview.conflicts.is_empty() {
+        return Err(format!(
+            "发现 {} 个同名冲突, 请明确选择覆盖或跳过",
+            preview.conflicts.len()
+        ));
+    }
+    if !bundle.includes_secrets
+        && bundle
+            .mcp_servers
+            .iter()
+            .any(|server| contains_redacted_value(&server.value))
+    {
+        return Err(
+            "该配置包已脱敏, 不能直接导入包含密钥的 MCP. 请导出“包含密钥”的私密配置包".to_string(),
+        );
+    }
+
+    let paths = resolve_paths(destination, home)?;
+    let conflict_names = preview
+        .conflicts
+        .iter()
+        .map(|conflict| (conflict.kind.as_str(), conflict.name.as_str()))
+        .collect::<BTreeSet<_>>();
+    let mut active = load_document(&paths.mcp_config)?;
+    let mut disabled = load_document(&paths.mcp_disabled)?;
+    let mut registry = load_registry(&paths);
+    for server in &bundle.mcp_servers {
+        if conflict_policy == "skip" && conflict_names.contains(&("mcp", server.name.as_str())) {
+            continue;
+        }
+        remove_server(&mut active, &server.name);
+        remove_server(&mut disabled, &server.name);
+        let value = normalize_server_for_target(&server.value, paths.target);
+        server_map_mut(if server.enabled {
+            &mut active
+        } else {
+            &mut disabled
+        })?
+        .insert(server.name.clone(), value);
+        if let (Some(repository), Some(revision)) = (&server.repository, &server.revision) {
+            registry.mcp.insert(
+                server.name.clone(),
+                RegistryOrigin {
+                    repository: repository.clone(),
+                    revision: revision.clone(),
+                    content_sha256: Some(hash_json(&normalize_server_for_target(
+                        &server.value,
+                        paths.target,
+                    ))),
+                },
+            );
+        }
+    }
+    commit_documents(&[
+        (&paths.mcp_config, &active),
+        (&paths.mcp_disabled, &disabled),
+    ])?;
+    save_registry(&paths, &registry)?;
+
+    for skill in &bundle.skills {
+        if conflict_policy == "skip" && conflict_names.contains(&("skill", skill.name.as_str())) {
+            continue;
+        }
+        let active = paths.skill_root.join(&skill.name);
+        let disabled = paths.skill_disabled_root.join(&skill.name);
+        if active.exists() {
+            fs::remove_dir_all(&active)
+                .map_err(|error| format!("无法覆盖 Skill {}: {error}", skill.name))?;
+        }
+        if disabled.exists() {
+            fs::remove_dir_all(&disabled)
+                .map_err(|error| format!("无法覆盖 Skill {}: {error}", skill.name))?;
+        }
+        transfer::restore_directory(
+            &skill.files,
+            if skill.enabled { &active } else { &disabled },
+        )?;
+        let destination = if skill.enabled { &active } else { &disabled };
+        let raw = fs::read_to_string(destination.join("SKILL.md"))
+            .map_err(|error| format!("无法读取导入后的 Skill {}: {error}", skill.name))?;
+        let frontmatter = parse_frontmatter(&raw);
+        if let (Some(repository), Some(revision)) = (
+            frontmatter
+                .get("repository")
+                .and_then(|value| normalize_repository_url(value)),
+            frontmatter.get("revision").cloned(),
+        ) {
+            let audit =
+                security::audit_skill(destination, &raw, Some(&repository), Some(&revision));
+            registry.skills.insert(
+                skill.name.clone(),
+                RegistryOrigin {
+                    repository,
+                    revision,
+                    content_sha256: Some(audit.sha256),
+                },
+            );
+        }
+    }
+
+    for prompt in &bundle.prompts {
+        if conflict_policy == "skip" && conflict_names.contains(&("prompt", prompt.name.as_str())) {
+            continue;
+        }
+        let active = prompt_file(&paths.prompt_root, &prompt.name, paths.target);
+        let disabled = prompt_file(&paths.prompt_disabled_root, &prompt.name, paths.target);
+        if active.exists() {
+            fs::remove_file(&active)
+                .map_err(|error| format!("无法覆盖提示词 {}: {error}", prompt.name))?;
+        }
+        if disabled.exists() {
+            fs::remove_file(&disabled)
+                .map_err(|error| format!("无法覆盖提示词 {}: {error}", prompt.name))?;
+        }
+        atomic_write(
+            if prompt.enabled { &active } else { &disabled },
+            prompt.content.as_bytes(),
+        )?;
+        let frontmatter = parse_frontmatter(&prompt.content);
+        if let (Some(repository), Some(revision)) = (
+            frontmatter
+                .get("repository")
+                .and_then(|value| normalize_repository_url(value)),
+            frontmatter.get("revision").cloned(),
+        ) {
+            registry.prompts.insert(
+                prompt.name.clone(),
+                RegistryOrigin {
+                    repository,
+                    revision,
+                    content_sha256: Some(sha256_hex(prompt.content.as_bytes())),
+                },
+            );
+        }
+    }
+    save_registry(&paths, &registry)?;
+    let inventory = inventory_with_home(destination.clone(), home)?;
+    Ok(ExtensionMutationResult {
+        message: format!(
+            "扩展迁移完成: MCP {}, Skill {}, 提示词 {}",
+            bundle.mcp_servers.len(),
+            bundle.skills.len(),
+            bundle.prompts.len()
+        ),
+        inventory,
+    })
+}
+
+fn normalize_server_for_target(value: &Value, target: Target) -> Value {
+    let mut value = value.clone();
+    let transport = summary_from_value("transfer", &value, true, Scope::User).transport;
+    targets::adapter(target).normalize_mcp(&mut value, &transport);
+    value
+}
+
+fn redact_mcp_value(value: &mut Value) {
+    if let Some(object) = value.as_object_mut() {
+        if let Some(url) = object.get_mut("url") {
+            if let Some(raw) = url.as_str() {
+                *url = Value::String(redact_url(raw));
+            }
+        }
+        for field in ["env", "headers"] {
+            if let Some(values) = object.get_mut(field).and_then(Value::as_object_mut) {
+                for value in values.values_mut() {
+                    *value = Value::String(REDACTED_VALUE.to_string());
+                }
+            }
+        }
+    }
+}
+
+fn contains_redacted_value(value: &Value) -> bool {
+    match value {
+        Value::String(value) => value.contains(REDACTED_VALUE),
+        Value::Array(values) => values.iter().any(contains_redacted_value),
+        Value::Object(values) => values.values().any(contains_redacted_value),
+        _ => false,
+    }
+}
+
 pub fn save_mcp(request: McpSaveRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
     let original_name = request.original_name.clone();
     let name = request.name.clone();
-    let result = save_mcp_with_home(request, &home);
-    if result.is_ok() {
-        if let Some(original_name) = original_name.filter(|original| original != &name) {
-            migrate_mcp_origin(&query, &home, &original_name, &name);
+    let summary = format!("保存 MCP {name}");
+    let result = mutate_with_history(&query, &home, "save-mcp", &summary, || {
+        let result = save_mcp_with_home(request, &home);
+        if result.is_ok() {
+            if let Some(original_name) = original_name.filter(|original| original != &name) {
+                migrate_mcp_origin(&query, &home, &original_name, &name);
+            }
         }
-    }
+        result
+    });
+    repair_extension_ownership(&query, &home);
+    result
+}
+
+pub fn install_market_mcp(
+    request: McpSaveRequest,
+    repository: &str,
+    revision: &str,
+) -> Result<ExtensionInventory, String> {
+    let home = home_dir()?;
+    let query = request.query.clone();
+    let name = request.name.clone();
+    let summary = format!("安装或更新市场 MCP {name}");
+    let result = mutate_with_history(&query, &home, "install-mcp", &summary, || {
+        save_mcp_with_home(request, &home)?;
+        tag_mcp_origin_with_home(&query, &home, &name, repository, revision)?;
+        inventory_with_home(query.clone(), &home)
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -346,7 +1146,14 @@ fn save_mcp_with_home(
 pub fn toggle_mcp(request: McpToggleRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = toggle_mcp_with_home(request, &home);
+    let summary = format!(
+        "{} MCP {}",
+        if request.enabled { "启用" } else { "停用" },
+        request.name
+    );
+    let result = mutate_with_history(&query, &home, "toggle-mcp", &summary, || {
+        toggle_mcp_with_home(request, &home)
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -391,41 +1198,114 @@ pub fn delete_mcp(request: McpLookupRequest) -> Result<ExtensionMutationResult, 
     let home = home_dir()?;
     let query = request.query.clone();
     let name = request.name.clone();
-    let result = delete_mcp_with_home(request, &home);
-    if result.is_ok() {
-        remove_mcp_origin(&query, &home, &name);
-    }
+    let summary = format!("删除 MCP {name}");
+    let result = mutate_with_history(&query, &home, "delete-mcp", &summary, || {
+        let result = delete_mcp_with_home(request, &home);
+        if result.is_ok() {
+            remove_mcp_origin(&query, &home, &name);
+        }
+        result
+    });
     repair_extension_ownership(&query, &home);
     result
 }
 
-pub fn tag_mcp_origin(
-    query: ExtensionQuery,
+fn tag_mcp_origin_with_home(
+    query: &ExtensionQuery,
+    home: &Path,
     name: &str,
     repository: &str,
     revision: &str,
-) -> Result<ExtensionInventory, String> {
-    let home = home_dir()?;
+) -> Result<(), String> {
     let paths = resolve_paths(&query, &home)?;
     validate_mcp_name(name)?;
     let repository = normalize_repository_url(repository)
         .ok_or_else(|| "市场项目 GitHub 仓库地址无效".to_string())?;
     let active = load_document(&paths.mcp_config)?;
     let disabled = load_document(&paths.mcp_disabled)?;
-    if !server_map(&active).contains_key(name) && !server_map(&disabled).contains_key(name) {
-        return Err(format!("未找到要标记来源的 MCP 服务: {name}"));
-    }
+    let value = server_map(&active)
+        .get(name)
+        .or_else(|| server_map(&disabled).get(name))
+        .ok_or_else(|| format!("未找到要标记来源的 MCP 服务: {name}"))?;
     let mut registry = load_registry(&paths);
     registry.mcp.insert(
         name.to_string(),
         RegistryOrigin {
             repository,
             revision: revision.to_string(),
+            content_sha256: Some(hash_json(value)),
         },
     );
     save_registry(&paths, &registry)?;
-    repair_extension_ownership(&query, &home);
-    inventory_with_home(query, &home)
+    Ok(())
+}
+
+fn tag_skill_origin_with_home(
+    query: &ExtensionQuery,
+    home: &Path,
+    name: &str,
+    repository: &str,
+    revision: &str,
+) -> Result<(), String> {
+    let paths = resolve_paths(&query, &home)?;
+    validate_skill_name(name, "Skill 名称")?;
+    let repository = normalize_repository_url(repository)
+        .ok_or_else(|| "市场项目 GitHub 仓库地址无效".to_string())?;
+    let path = if paths.skill_root.join(name).is_dir() {
+        paths.skill_root.join(name)
+    } else if paths.skill_disabled_root.join(name).is_dir() {
+        paths.skill_disabled_root.join(name)
+    } else {
+        return Err(format!("未找到要标记来源的 Skill: {name}"));
+    };
+    let raw = fs::read_to_string(path.join("SKILL.md"))
+        .map_err(|error| format!("无法读取 Skill 来源文件: {error}"))?;
+    let audit = security::audit_skill(&path, &raw, Some(&repository), Some(revision));
+    let mut registry = load_registry(&paths);
+    registry.skills.insert(
+        name.to_string(),
+        RegistryOrigin {
+            repository,
+            revision: revision.to_string(),
+            content_sha256: Some(audit.sha256),
+        },
+    );
+    save_registry(&paths, &registry)?;
+    Ok(())
+}
+
+fn tag_prompt_origin_with_home(
+    query: &ExtensionQuery,
+    home: &Path,
+    name: &str,
+    repository: &str,
+    revision: &str,
+) -> Result<(), String> {
+    let paths = resolve_paths(&query, &home)?;
+    ensure_prompt_scope(&paths)?;
+    validate_skill_name(name, "提示词名称")?;
+    let repository = normalize_repository_url(repository)
+        .ok_or_else(|| "市场项目 GitHub 仓库地址无效".to_string())?;
+    let path = [
+        prompt_file(&paths.prompt_root, name, paths.target),
+        prompt_file(&paths.prompt_disabled_root, name, paths.target),
+    ]
+    .into_iter()
+    .find(|path| path.is_file())
+    .ok_or_else(|| format!("未找到要标记来源的提示词: {name}"))?;
+    let content = fs::read(&path)
+        .map_err(|error| format!("无法读取提示词来源文件 {}: {error}", path.display()))?;
+    let mut registry = load_registry(&paths);
+    registry.prompts.insert(
+        name.to_string(),
+        RegistryOrigin {
+            repository,
+            revision: revision.to_string(),
+            content_sha256: Some(sha256_hex(&content)),
+        },
+    );
+    save_registry(&paths, &registry)?;
+    Ok(())
 }
 
 fn delete_mcp_with_home(
@@ -474,18 +1354,39 @@ pub fn skill_details(request: SkillLookupRequest) -> Result<SkillDetails, String
 pub fn save_skill(request: SkillSaveRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = save_skill_with_home(request, &home);
+    let original_name = request.original_name.clone();
+    let name = request.name.clone();
+    let summary = format!("保存 Skill {}", request.name);
+    let result = mutate_with_history(&query, &home, "save-skill", &summary, || {
+        let result = save_skill_with_home(request, &home);
+        if result.is_ok() {
+            if let Some(original) = original_name.filter(|original| original != &name) {
+                migrate_named_origin(&query, &home, "skill", &original, &name);
+            }
+        }
+        result
+    });
     repair_extension_ownership(&query, &home);
     result
 }
 
-pub fn install_skill_bundle(
+pub fn install_market_skill_bundle(
     query: ExtensionQuery,
     name: &str,
     files: Vec<SkillBundleFile>,
+    repository: &str,
+    revision: &str,
 ) -> Result<ExtensionInventory, String> {
     let home = home_dir()?;
-    install_skill_bundle_with_home(query, name, files, &home)
+    let summary = format!("安装或更新市场 Skill {name}");
+    let operation_query = query.clone();
+    let result = mutate_with_history(&query, &home, "install-skill", &summary, || {
+        install_skill_bundle_with_home(operation_query, name, files, &home)?;
+        tag_skill_origin_with_home(&query, &home, name, repository, revision)?;
+        inventory_with_home(query.clone(), &home)
+    });
+    repair_extension_ownership(&query, &home);
+    result
 }
 
 fn install_skill_bundle_with_home(
@@ -528,15 +1429,6 @@ fn install_skill_bundle_with_home(
         None
     };
     let destination = if existing_disabled { disabled } else { active };
-    if let Some(source) = &existing {
-        let backup = local_app_data()
-            .join("extension-config-backups/skills")
-            .join(target_id(paths.target))
-            .join(scope_id(paths.scope))
-            .join(format!("{}-{name}", now_stamp()));
-        copy_directory(source, &backup)?;
-    }
-
     let rollback = existing
         .as_ref()
         .map(|source| source.with_file_name(format!(".{name}.rollback-{}", now_stamp())));
@@ -569,31 +1461,6 @@ fn validate_bundle_relative_path(value: &str) -> Result<PathBuf, String> {
         return Err(format!("市场 Skill 文件路径不安全: {value}"));
     }
     Ok(path.to_path_buf())
-}
-
-fn copy_directory(source: &Path, destination: &Path) -> Result<(), String> {
-    fs::create_dir_all(destination).map_err(|error| format!("无法创建 Skill 备份目录: {error}"))?;
-    for entry in fs::read_dir(source)
-        .map_err(|error| format!("无法读取 Skill 目录 {}: {error}", source.display()))?
-    {
-        let entry = entry.map_err(|error| format!("无法读取 Skill 目录项: {error}"))?;
-        let kind = entry
-            .file_type()
-            .map_err(|error| format!("无法读取 Skill 文件类型: {error}"))?;
-        let target = destination.join(entry.file_name());
-        if kind.is_symlink() {
-            return Err(format!(
-                "Skill 备份拒绝符号链接: {}",
-                entry.path().display()
-            ));
-        } else if kind.is_dir() {
-            copy_directory(&entry.path(), &target)?;
-        } else if kind.is_file() {
-            fs::copy(entry.path(), &target)
-                .map_err(|error| format!("无法备份 Skill 文件: {error}"))?;
-        }
-    }
-    Ok(())
 }
 
 fn save_skill_with_home(
@@ -650,7 +1517,14 @@ fn save_skill_with_home(
 pub fn toggle_skill(request: SkillToggleRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = toggle_skill_with_home(request, &home);
+    let summary = format!(
+        "{} Skill {}",
+        if request.enabled { "启用" } else { "停用" },
+        request.name
+    );
+    let result = mutate_with_history(&query, &home, "toggle-skill", &summary, || {
+        toggle_skill_with_home(request, &home)
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -701,7 +1575,15 @@ fn toggle_skill_with_home(
 pub fn delete_skill(request: SkillLookupRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = delete_skill_with_home(request, &home);
+    let name = request.name.clone();
+    let summary = format!("删除 Skill {}", request.name);
+    let result = mutate_with_history(&query, &home, "delete-skill", &summary, || {
+        let result = delete_skill_with_home(request, &home);
+        if result.is_ok() {
+            remove_named_origin(&query, &home, "skill", &name);
+        }
+        result
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -765,18 +1647,36 @@ pub fn prompt_details(request: PromptLookupRequest) -> Result<PromptDetails, Str
 pub fn save_prompt(request: PromptSaveRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = save_prompt_with_home(request, &home);
+    let original_name = request.original_name.clone();
+    let name = request.name.clone();
+    let summary = format!("保存提示词 {}", request.name);
+    let result = mutate_with_history(&query, &home, "save-prompt", &summary, || {
+        let result = save_prompt_with_home(request, &home);
+        if result.is_ok() {
+            if let Some(original) = original_name.filter(|original| original != &name) {
+                migrate_named_origin(&query, &home, "prompt", &original, &name);
+            }
+        }
+        result
+    });
     repair_extension_ownership(&query, &home);
     result
 }
 
-pub fn install_market_prompt(
+pub fn install_market_prompt_with_origin(
     query: ExtensionQuery,
     name: &str,
     content: String,
+    repository: &str,
+    revision: &str,
 ) -> Result<ExtensionInventory, String> {
     let home = home_dir()?;
-    let result = install_market_prompt_with_home(query.clone(), name, content, &home);
+    let summary = format!("安装或更新市场提示词 {name}");
+    let result = mutate_with_history(&query, &home, "install-prompt", &summary, || {
+        install_market_prompt_with_home(query.clone(), name, content, &home)?;
+        tag_prompt_origin_with_home(&query, &home, name, repository, revision)?;
+        inventory_with_home(query.clone(), &home)
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -861,7 +1761,14 @@ fn save_prompt_with_home(
 pub fn toggle_prompt(request: PromptToggleRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
-    let result = toggle_prompt_with_home(request, &home);
+    let summary = format!(
+        "{}提示词 {}",
+        if request.enabled { "启用" } else { "停用" },
+        request.name
+    );
+    let result = mutate_with_history(&query, &home, "toggle-prompt", &summary, || {
+        toggle_prompt_with_home(request, &home)
+    });
     repair_extension_ownership(&query, &home);
     result
 }
@@ -902,6 +1809,23 @@ fn toggle_prompt_with_home(
 pub fn delete_prompt(request: PromptLookupRequest) -> Result<ExtensionMutationResult, String> {
     let home = home_dir()?;
     let query = request.query.clone();
+    let name = request.name.clone();
+    let summary = format!("删除提示词 {}", request.name);
+    let result = mutate_with_history(&query, &home, "delete-prompt", &summary, || {
+        let result = delete_prompt_with_home(request, &home);
+        if result.is_ok() {
+            remove_named_origin(&query, &home, "prompt", &name);
+        }
+        result
+    });
+    repair_extension_ownership(&query, &home);
+    result
+}
+
+fn delete_prompt_with_home(
+    request: PromptLookupRequest,
+    home: &Path,
+) -> Result<ExtensionMutationResult, String> {
     let paths = resolve_paths(&request.query, &home)?;
     ensure_prompt_scope(&paths)?;
     validate_skill_name(&request.name, "提示词名称")?;
@@ -927,7 +1851,6 @@ pub fn delete_prompt(request: PromptLookupRequest) -> Result<ExtensionMutationRe
         .map_err(|error| format!("无法创建提示词回收目录: {error}"))?;
     fs::rename(&source, &trash).map_err(|error| format!("无法移动提示词到回收目录: {error}"))?;
     let inventory = inventory_with_home(request.query, &home)?;
-    repair_extension_ownership(&query, &home);
     Ok(ExtensionMutationResult {
         message: format!("提示词 {} 已移入工作台回收目录", request.name),
         inventory,
@@ -951,6 +1874,88 @@ fn repair_extension_ownership(query: &ExtensionQuery, home: &Path) {
     restore_user_ownership(&local_app_data().join("extension-config-backups"));
     restore_user_ownership(&local_app_data().join("extension-trash"));
     restore_user_ownership(&local_app_data().join("extension-registry"));
+    restore_user_ownership(&local_app_data().join("extension-history"));
+}
+
+fn history_context(query: &ExtensionQuery, home: &Path) -> Result<history::HistoryContext, String> {
+    let paths = resolve_paths(query, home)?;
+    let target_label = targets::adapter(paths.target).label();
+    Ok(history::HistoryContext {
+        base_root: local_app_data().join("extension-history"),
+        target: target_id(paths.target).to_string(),
+        target_label: target_label.to_string(),
+        scope: scope_id(paths.scope).to_string(),
+        workspace: paths
+            .workspace
+            .as_ref()
+            .map(|path| path.display().to_string()),
+        managed: vec![
+            history::ManagedPath {
+                key: "mcp.json".to_string(),
+                path: paths.mcp_config.clone(),
+            },
+            history::ManagedPath {
+                key: "mcp.disabled.json".to_string(),
+                path: paths.mcp_disabled.clone(),
+            },
+            history::ManagedPath {
+                key: "skills".to_string(),
+                path: paths.skill_root.clone(),
+            },
+            history::ManagedPath {
+                key: "skills-disabled".to_string(),
+                path: paths.skill_disabled_root.clone(),
+            },
+            history::ManagedPath {
+                key: "prompts".to_string(),
+                path: paths.prompt_root.clone(),
+            },
+            history::ManagedPath {
+                key: "prompts-disabled".to_string(),
+                path: paths.prompt_disabled_root.clone(),
+            },
+            history::ManagedPath {
+                key: "registry.json".to_string(),
+                path: registry_path(&paths),
+            },
+        ],
+    })
+}
+
+fn mutate_with_history<T>(
+    query: &ExtensionQuery,
+    home: &Path,
+    action: &str,
+    summary: &str,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    let context = history_context(query, home)?;
+    let mut transaction = history::begin(&context, action, summary)?;
+    let result = operation();
+    let value = match result {
+        Ok(value) => value,
+        Err(error) => {
+            let rollback = history::rollback(&context, &transaction);
+            history::discard(transaction);
+            return Err(match rollback {
+                Ok(()) => error,
+                Err(rollback_error) => {
+                    format!("{error}; 同时回滚修改失败: {rollback_error}")
+                }
+            });
+        }
+    };
+    if let Err(error) = history::finish(&context, &mut transaction) {
+        let rollback = history::rollback(&context, &transaction);
+        history::discard(transaction);
+        return Err(match rollback {
+            Ok(()) => format!("保存扩展历史失败, 修改已回滚: {error}"),
+            Err(rollback_error) => {
+                format!("保存扩展历史失败, 且修改回滚失败: {error}; {rollback_error}")
+            }
+        });
+    }
+    Ok(value)
 }
 
 fn prompt_file(root: &Path, name: &str, target: Target) -> PathBuf {
@@ -966,7 +1971,7 @@ fn prompt_file(root: &Path, name: &str, target: Target) -> PathBuf {
 }
 
 fn ensure_prompt_scope(paths: &ExtensionPaths) -> Result<(), String> {
-    if paths.target == Target::Cursor && paths.scope == Scope::User {
+    if !targets::adapter(paths.target).prompt_editable(paths.scope) {
         Err("Cursor User Rules 由 Customize > Rules 管理, 没有公开的文件配置格式. 请切换到项目级管理 `.cursor/rules/*.mdc`, 工作台不会修改 Cursor 私有数据库".to_string())
     } else {
         Ok(())
@@ -1014,6 +2019,14 @@ fn inventory_with_home(query: ExtensionQuery, home: &Path) -> Result<ExtensionIn
         if let Some(origin) = registry.mcp.get(&server.name) {
             server.repository = Some(origin.repository.clone());
             server.revision = Some(origin.revision.clone());
+            if let Some(expected) = origin.content_sha256.as_deref() {
+                if let Some(value) = server_map(&active)
+                    .get(&server.name)
+                    .or_else(|| server_map(&disabled).get(&server.name))
+                {
+                    server.local_modified = hash_json(value) != expected;
+                }
+            }
         }
     }
     let mut skills = scan_skills(&paths.skill_root, true, false, paths.scope, None)?;
@@ -1027,13 +2040,24 @@ fn inventory_with_home(query: ExtensionQuery, home: &Path) -> Result<ExtensionIn
     for (root, source) in &paths.read_only_skill_roots {
         skills.extend(scan_skills(root, true, true, Scope::User, Some(source))?);
     }
+    for skill in &mut skills {
+        if let Some(origin) = registry.skills.get(&skill.id) {
+            skill.repository = Some(origin.repository.clone());
+            skill.revision = Some(origin.revision.clone());
+            skill.local_modified = origin
+                .content_sha256
+                .as_deref()
+                .is_some_and(|expected| expected != skill.audit.sha256);
+        }
+    }
     skills.sort_by(|left, right| {
         left.built_in
             .cmp(&right.built_in)
             .then_with(|| right.enabled.cmp(&left.enabled))
             .then_with(|| left.name.cmp(&right.name))
     });
-    let prompt_editable = !(paths.target == Target::Cursor && paths.scope == Scope::User);
+    let adapter = targets::adapter(paths.target);
+    let prompt_editable = adapter.prompt_editable(paths.scope);
     let mut prompts = if prompt_editable {
         scan_prompts(&paths.prompt_root, true, paths.target, paths.scope)?
     } else {
@@ -1047,19 +2071,25 @@ fn inventory_with_home(query: ExtensionQuery, home: &Path) -> Result<ExtensionIn
             paths.scope,
         )?);
     }
+    for prompt in &mut prompts {
+        if let Some(origin) = registry.prompts.get(&prompt.id) {
+            prompt.repository = Some(origin.repository.clone());
+            prompt.revision = Some(origin.revision.clone());
+            prompt.local_modified = origin
+                .content_sha256
+                .as_deref()
+                .is_some_and(|expected| expected != prompt.sha256);
+        }
+    }
     prompts.sort_by(|left, right| {
         right
             .enabled
             .cmp(&left.enabled)
             .then_with(|| left.name.cmp(&right.name))
     });
-    let target_label = match paths.target {
-        Target::Cursor => "Cursor",
-        Target::ClaudeCode => "Claude Code",
-    };
     Ok(ExtensionInventory {
         target: target_id(paths.target).to_string(),
-        target_label: target_label.to_string(),
+        target_label: adapter.label().to_string(),
         scope: scope_id(paths.scope).to_string(),
         workspace: paths
             .workspace
@@ -1075,13 +2105,7 @@ fn inventory_with_home(query: ExtensionQuery, home: &Path) -> Result<ExtensionIn
             .count(),
         enabled_prompt_count: prompts.iter().filter(|prompt| prompt.enabled).count(),
         prompt_editable,
-        prompt_note: if !prompt_editable {
-            "Cursor 全局 User Rules 只能在 Customize > Rules 中维护. 工作台仅管理项目级 `.cursor/rules/*.mdc`, 避免写入未公开的私有数据库".to_string()
-        } else if paths.target == Target::ClaudeCode && paths.scope == Scope::User {
-            "Claude Code 官方支持 `~/.claude/rules/*.md` 作为所有项目生效的个人规则".to_string()
-        } else {
-            "项目级提示词会随当前工作区加载, 可以纳入版本控制".to_string()
-        },
+        prompt_note: adapter.prompt_note(paths.scope),
         mcp_servers,
         skills,
         prompts,
@@ -1090,6 +2114,7 @@ fn inventory_with_home(query: ExtensionQuery, home: &Path) -> Result<ExtensionIn
         } else {
             "用户级配置会作用于当前系统账号".to_string()
         },
+        capabilities: adapter.capabilities(paths.scope),
     })
 }
 
@@ -1113,92 +2138,7 @@ fn resolve_paths(query: &ExtensionQuery, home: &Path) -> Result<ExtensionPaths, 
     } else {
         None
     };
-    let (mcp_config, mcp_disabled, skill_root, skill_disabled_root) = match (target, scope) {
-        (Target::Cursor, Scope::User) => (
-            home.join(".cursor/mcp.json"),
-            home.join(".cursor/mcp.disabled.json"),
-            home.join(".cursor/skills"),
-            home.join(".cursor/skills-disabled"),
-        ),
-        (Target::Cursor, Scope::Project) => {
-            let root = workspace.as_ref().unwrap();
-            (
-                root.join(".cursor/mcp.json"),
-                root.join(".cursor/mcp.disabled.json"),
-                root.join(".cursor/skills"),
-                root.join(".cursor/skills-disabled"),
-            )
-        }
-        (Target::ClaudeCode, Scope::User) => (
-            home.join(".claude.json"),
-            home.join(".claude/mcp.disabled.json"),
-            home.join(".claude/skills"),
-            home.join(".claude/skills-disabled"),
-        ),
-        (Target::ClaudeCode, Scope::Project) => {
-            let root = workspace.as_ref().unwrap();
-            (
-                root.join(".mcp.json"),
-                root.join(".mcp.disabled.json"),
-                root.join(".claude/skills"),
-                root.join(".claude/skills-disabled"),
-            )
-        }
-    };
-    let (prompt_root, prompt_disabled_root) = match (target, scope) {
-        (Target::Cursor, Scope::User) => (
-            home.join(".cursor/rules"),
-            home.join(".cursor/rules-disabled"),
-        ),
-        (Target::Cursor, Scope::Project) => {
-            let root = workspace.as_ref().unwrap();
-            (
-                root.join(".cursor/rules"),
-                root.join(".cursor/rules-disabled"),
-            )
-        }
-        (Target::ClaudeCode, Scope::User) => (
-            home.join(".claude/rules"),
-            home.join(".claude/rules-disabled"),
-        ),
-        (Target::ClaudeCode, Scope::Project) => {
-            let root = workspace.as_ref().unwrap();
-            (
-                root.join(".claude/rules"),
-                root.join(".claude/rules-disabled"),
-            )
-        }
-    };
-    let read_only_skill_roots = match (target, scope) {
-        (Target::Cursor, Scope::User) => vec![
-            (
-                home.join(".cursor/skills-cursor"),
-                "Cursor 内置".to_string(),
-            ),
-            (home.join(".claude/skills"), "Claude 兼容".to_string()),
-            (home.join(".agents/skills"), "Agents 共享".to_string()),
-        ],
-        (Target::Cursor, Scope::Project) => {
-            let root = workspace.as_ref().unwrap();
-            vec![
-                (root.join(".claude/skills"), "Claude 兼容".to_string()),
-                (root.join(".agents/skills"), "Agents 共享".to_string()),
-            ]
-        }
-        _ => Vec::new(),
-    };
-    Ok(ExtensionPaths {
-        target,
-        scope,
-        workspace,
-        mcp_config,
-        mcp_disabled,
-        skill_root,
-        skill_disabled_root,
-        prompt_root,
-        prompt_disabled_root,
-        read_only_skill_roots,
-    })
+    Ok(targets::resolve_paths(target, scope, workspace, home))
 }
 
 fn parse_target(value: &str) -> Result<Target, String> {
@@ -1218,10 +2158,7 @@ fn parse_scope(value: &str) -> Result<Scope, String> {
 }
 
 fn target_id(target: Target) -> &'static str {
-    match target {
-        Target::Cursor => "cursor",
-        Target::ClaudeCode => "claude-code",
-    }
+    targets::adapter(target).id()
 }
 
 fn scope_id(scope: Scope) -> &'static str {
@@ -1289,6 +2226,43 @@ fn remove_mcp_origin(query: &ExtensionQuery, home: &Path, name: &str) {
     };
     let mut registry = load_registry(&paths);
     if registry.mcp.remove(name).is_some() {
+        let _ = save_registry(&paths, &registry);
+    }
+}
+
+fn migrate_named_origin(
+    query: &ExtensionQuery,
+    home: &Path,
+    kind: &str,
+    original: &str,
+    name: &str,
+) {
+    let Ok(paths) = resolve_paths(query, home) else {
+        return;
+    };
+    let mut registry = load_registry(&paths);
+    let origins = if kind == "skill" {
+        &mut registry.skills
+    } else {
+        &mut registry.prompts
+    };
+    if let Some(origin) = origins.remove(original) {
+        origins.insert(name.to_string(), origin);
+        let _ = save_registry(&paths, &registry);
+    }
+}
+
+fn remove_named_origin(query: &ExtensionQuery, home: &Path, kind: &str, name: &str) {
+    let Ok(paths) = resolve_paths(query, home) else {
+        return;
+    };
+    let mut registry = load_registry(&paths);
+    let removed = if kind == "skill" {
+        registry.skills.remove(name).is_some()
+    } else {
+        registry.prompts.remove(name).is_some()
+    };
+    if removed {
         let _ = save_registry(&paths, &registry);
     }
 }
@@ -1418,9 +2392,6 @@ fn build_server_value(existing: Option<&Value>, request: &McpSaveRequest) -> Res
         object.remove(key);
     }
     object.remove("_i18nWorkbench");
-    if request.query.target == "claude-code" {
-        object.insert("type".to_string(), Value::String(request.transport.clone()));
-    }
     if request.transport == "stdio" {
         object.insert(
             "command".to_string(),
@@ -1459,7 +2430,10 @@ fn build_server_value(existing: Option<&Value>, request: &McpSaveRequest) -> Res
             object.insert("headers".to_string(), Value::Object(headers));
         }
     }
-    Ok(Value::Object(object))
+    let mut value = Value::Object(object);
+    targets::adapter(parse_target(&request.query.target)?)
+        .normalize_mcp(&mut value, &request.transport);
+    Ok(value)
 }
 
 fn merge_secret_fields(
@@ -1538,6 +2512,7 @@ fn summary_from_value(name: &str, value: &Value, enabled: bool, scope: Scope) ->
         },
         repository: workbench_origin(value, "repository").or_else(|| find_github_repository(value)),
         revision: workbench_origin(value, "revision"),
+        local_modified: false,
     }
 }
 
@@ -1696,6 +2671,7 @@ fn scan_skills(
             .get("repository")
             .and_then(|value| normalize_repository_url(value));
         let revision = frontmatter.get("revision").cloned();
+        let audit = security::audit_skill(&path, &raw, repository.as_deref(), revision.as_deref());
         result.push(SkillSummary {
             id: fallback_name,
             name,
@@ -1712,6 +2688,8 @@ fn scan_skills(
             path: path.display().to_string(),
             repository,
             revision,
+            audit,
+            local_modified: false,
         });
     }
     Ok(result)
@@ -1765,6 +2743,8 @@ fn scan_prompts(
                 .get("repository")
                 .and_then(|value| normalize_repository_url(value)),
             revision: frontmatter.get("revision").cloned(),
+            sha256: sha256_hex(raw.as_bytes()),
+            local_modified: false,
             id,
             enabled,
             source: if scope == Scope::User {
@@ -1799,9 +2779,6 @@ fn parse_frontmatter(raw: &str) -> BTreeMap<String, String> {
 }
 
 fn commit_documents(updates: &[(&Path, &Value)]) -> Result<(), String> {
-    for (path, _) in updates {
-        backup_config(path)?;
-    }
     let originals = updates
         .iter()
         .map(|(path, _)| fs::read(path).ok())
@@ -1891,30 +2868,24 @@ fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
     fs::rename(source, destination)
 }
 
-fn backup_config(path: &Path) -> Result<(), String> {
-    if !path.is_file() {
-        return Ok(());
-    }
-    let file_name = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("config.json");
-    let backup = local_app_data()
-        .join("extension-config-backups")
-        .join(now_stamp().to_string())
-        .join(file_name);
-    fs::create_dir_all(backup.parent().unwrap())
-        .map_err(|error| format!("无法创建扩展配置备份目录: {error}"))?;
-    fs::copy(path, &backup)
-        .map(|_| ())
-        .map_err(|error| format!("无法备份扩展配置 {}: {error}", path.display()))
-}
-
 fn now_stamp() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos()
+}
+
+fn hash_json(value: &Value) -> String {
+    serde_json::to_vec(value)
+        .map(|data| sha256_hex(&data))
+        .unwrap_or_default()
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    Sha256::digest(data)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -2406,6 +3377,89 @@ mod tests {
             claude["mcpServers"]["claude-server"]["headers"]["Authorization"],
             "Bearer secret"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn previews_and_copies_complete_extensions_between_targets() {
+        let root = sandbox();
+        let home = root.join("home");
+        let workspace = root.join("workspace");
+        fs::create_dir_all(workspace.join(".cursor/skills/demo/scripts")).unwrap();
+        fs::create_dir_all(workspace.join(".cursor/rules")).unwrap();
+        fs::write(
+            workspace.join(".cursor/mcp.json"),
+            r#"{"mcpServers":{"demo":{"command":"node","args":["server.js"],"env":{"TOKEN":"secret"}}}}"#,
+        )
+        .unwrap();
+        fs::write(
+            workspace.join(".cursor/skills/demo/SKILL.md"),
+            "---\nname: demo\ndescription: Demo\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            workspace.join(".cursor/skills/demo/scripts/run.js"),
+            "console.log('ok')",
+        )
+        .unwrap();
+        fs::write(
+            workspace.join(".cursor/rules/review.mdc"),
+            "---\nname: review\ndescription: Review\n---\nReview",
+        )
+        .unwrap();
+        let source = query("cursor", "project", Some(&workspace));
+        let destination = query("claude-code", "project", Some(&workspace));
+        let bundle = bundle_from_query(&source, &home, true).unwrap();
+        let preview = preview_bundle(&bundle, &destination, &home).unwrap();
+        assert!(preview.conflicts.is_empty());
+        apply_bundle(&bundle, &destination, &home, "overwrite").unwrap();
+
+        let mcp: Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join(".mcp.json")).unwrap())
+                .unwrap();
+        assert_eq!(mcp["mcpServers"]["demo"]["type"], "stdio");
+        assert_eq!(mcp["mcpServers"]["demo"]["env"]["TOKEN"], "secret");
+        assert!(workspace
+            .join(".claude/skills/demo/scripts/run.js")
+            .is_file());
+        assert!(workspace.join(".claude/rules/review.md").is_file());
+
+        let conflict = preview_bundle(&bundle, &destination, &home).unwrap();
+        assert_eq!(conflict.conflicts.len(), 3);
+        let sanitized = bundle_from_query(&source, &home, false).unwrap();
+        assert!(apply_bundle(&sanitized, &destination, &home, "overwrite").is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn batch_toggles_selected_mcp_servers() {
+        let root = sandbox();
+        let home = root.join("home");
+        let workspace = root.join("workspace");
+        fs::create_dir_all(workspace.join(".cursor")).unwrap();
+        fs::write(
+            workspace.join(".cursor/mcp.json"),
+            r#"{"mcpServers":{"one":{"command":"node"},"two":{"command":"node"}}}"#,
+        )
+        .unwrap();
+        let query = query("cursor", "project", Some(&workspace));
+        let result = batch_toggle_with_home(
+            &ExtensionBatchRequest {
+                query: query.clone(),
+                kind: "mcp".to_string(),
+                names: vec!["one".to_string()],
+                enabled: false,
+            },
+            &["one".to_string()],
+            &home,
+        )
+        .unwrap();
+        assert_eq!(result.inventory.active_mcp_count, 1);
+        assert!(result
+            .inventory
+            .mcp_servers
+            .iter()
+            .any(|server| server.name == "one" && !server.enabled));
         let _ = fs::remove_dir_all(root);
     }
 

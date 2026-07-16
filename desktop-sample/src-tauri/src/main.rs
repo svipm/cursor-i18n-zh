@@ -50,6 +50,24 @@ async fn check_for_updates() -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
+async fn download_latest_update() -> Result<release::UpdateDownloadResult, String> {
+    tauri::async_runtime::spawn_blocking(release::download_latest_update)
+        .await
+        .map_err(|error| format!("更新包下载线程异常: {error}"))?
+}
+
+#[tauri::command]
+fn open_downloaded_update(path: String) -> Result<(), String> {
+    let path = release::validate_update_path(std::path::Path::new(&path))?;
+    open_external(
+        path.parent()
+            .unwrap_or(std::path::Path::new("."))
+            .as_os_str(),
+        "更新包目录",
+    )
+}
+
+#[tauri::command]
 async fn github_projects() -> Result<Vec<github::GitHubProject>, String> {
     tauri::async_runtime::spawn_blocking(github::load_projects)
         .await
@@ -86,6 +104,87 @@ fn extension_mcp_details(
     request: extensions::McpLookupRequest,
 ) -> Result<extensions::McpServerDetails, String> {
     extensions::mcp_details(request)
+}
+
+#[tauri::command]
+async fn extension_check_mcp(
+    request: extensions::McpHealthRequest,
+) -> Result<extensions::McpHealthResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::check_mcp_health(request))
+        .await
+        .map_err(|error| format!("MCP 检测线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_history(
+    query: extensions::ExtensionQuery,
+) -> Result<Vec<extensions::ExtensionHistoryRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::extension_history(query))
+        .await
+        .map_err(|error| format!("扩展历史扫描线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_restore_history(
+    request: extensions::ExtensionHistoryRestoreRequest,
+) -> Result<extensions::ExtensionMutationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::restore_extension_history(request))
+        .await
+        .map_err(|error| format!("扩展历史恢复线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_export_bundle(
+    request: extensions::ExtensionExportRequest,
+) -> Result<extensions::ExtensionExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::export_extension_bundle(request))
+        .await
+        .map_err(|error| format!("扩展配置导出线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_preview_import(
+    request: extensions::ExtensionImportPreviewRequest,
+) -> Result<extensions::TransferPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::preview_extension_import(request))
+        .await
+        .map_err(|error| format!("扩展配置导入预检线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_import_bundle(
+    request: extensions::ExtensionImportRequest,
+) -> Result<extensions::ExtensionMutationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::import_extension_bundle(request))
+        .await
+        .map_err(|error| format!("扩展配置导入线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_preview_copy(
+    request: extensions::ExtensionCopyPreviewRequest,
+) -> Result<extensions::TransferPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::preview_extension_copy(request))
+        .await
+        .map_err(|error| format!("扩展复制预检线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_copy(
+    request: extensions::ExtensionCopyRequest,
+) -> Result<extensions::ExtensionMutationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::copy_extensions(request))
+        .await
+        .map_err(|error| format!("扩展复制线程异常: {error}"))?
+}
+
+#[tauri::command]
+async fn extension_batch_toggle(
+    request: extensions::ExtensionBatchRequest,
+) -> Result<extensions::ExtensionMutationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || extensions::batch_toggle_extensions(request))
+        .await
+        .map_err(|error| format!("扩展批量操作线程异常: {error}"))?
 }
 
 #[tauri::command]
@@ -180,6 +279,13 @@ async fn choose_extension_workspace() -> Result<Option<String>, String> {
         .map_err(|error| format!("工作区选择线程异常: {error}"))?
 }
 
+#[tauri::command]
+async fn choose_extension_bundle_path(mode: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || choose_bundle_path(&mode))
+        .await
+        .map_err(|error| format!("配置包文件选择线程异常: {error}"))?
+}
+
 #[cfg(target_os = "windows")]
 fn choose_workspace() -> Result<Option<String>, String> {
     let script = "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description='选择要管理 MCP, Skill 和提示词的工作区'; $dialog.ShowNewFolderButton=$false; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.SelectedPath}";
@@ -223,6 +329,50 @@ fn workspace_from_output(
         .trim_end_matches(['/', '\\'])
         .to_string();
     Ok((!path.is_empty()).then_some(path))
+}
+
+#[cfg(target_os = "windows")]
+fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
+    let script = match mode {
+        "save" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter='扩展配置包 (*.json)|*.json'; $dialog.FileName='i18n-workbench-extensions.json'; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
+        "open" => "Add-Type -AssemblyName System.Windows.Forms; $dialog=New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter='扩展配置包 (*.json)|*.json'; $dialog.CheckFileExists=$true; if($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $dialog.FileName}",
+        _ => return Err(format!("不支持的配置包选择模式: {mode}")),
+    };
+    workspace_from_output(
+        adapters::hidden_command("powershell.exe")
+            .args(["-NoProfile", "-STA", "-Command", script])
+            .output(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
+    let script = match mode {
+        "save" => "POSIX path of (choose file name with prompt \"导出扩展配置包\" default name \"i18n-workbench-extensions.json\")",
+        "open" => "POSIX path of (choose file with prompt \"选择扩展配置包\" of type {\"public.json\"})",
+        _ => return Err(format!("不支持的配置包选择模式: {mode}")),
+    };
+    workspace_from_output(
+        adapters::hidden_command("osascript")
+            .args(["-e", script])
+            .output(),
+    )
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn choose_bundle_path(mode: &str) -> Result<Option<String>, String> {
+    let mut command = adapters::hidden_command("zenity");
+    command.args(["--file-selection", "--file-filter=*.json"]);
+    if mode == "save" {
+        command.args([
+            "--save",
+            "--confirm-overwrite",
+            "--filename=i18n-workbench-extensions.json",
+        ]);
+    } else if mode != "open" {
+        return Err(format!("不支持的配置包选择模式: {mode}"));
+    }
+    workspace_from_output(command.output())
 }
 
 #[tauri::command]
@@ -339,11 +489,22 @@ fn main() {
             list_backups,
             cursor_usage,
             check_for_updates,
+            download_latest_update,
+            open_downloaded_update,
             github_projects,
             extension_market,
             extension_install_market_item,
             extension_inventory,
             extension_mcp_details,
+            extension_check_mcp,
+            extension_history,
+            extension_restore_history,
+            extension_export_bundle,
+            extension_preview_import,
+            extension_import_bundle,
+            extension_preview_copy,
+            extension_copy,
+            extension_batch_toggle,
             extension_save_mcp,
             extension_toggle_mcp,
             extension_delete_mcp,
@@ -357,6 +518,7 @@ fn main() {
             extension_delete_prompt,
             open_extension_location,
             choose_extension_workspace,
+            choose_extension_bundle_path,
             open_project_page,
             open_github_url,
             restart_as_admin,

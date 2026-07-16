@@ -14,7 +14,7 @@ use std::process::Stdio;
 use std::sync::mpsc;
 use std::thread;
 
-const ADAPTER_VERSION: &str = "0.3.8";
+const ADAPTER_VERSION: &str = "0.3.9";
 const MIN_NODE_MAJOR: u32 = 18;
 
 struct BackupDetails {

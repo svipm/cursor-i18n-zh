@@ -50,7 +50,7 @@
             <div><strong id="permissionTitle">正在检查权限</strong><small id="permissionText">请稍候...</small></div>
           </div>
           <div class="version-row">
-            <span>双应用工作台</span><span>v0.3.8</span>
+            <span>双应用工作台</span><span>v0.3.9</span>
           </div>
         </div>
       </aside>
@@ -134,7 +134,7 @@
               <div class="app-meta stacked-meta">
                 <span id="cursorVersion">版本: 检测中</span>
                 <span id="cursorInstallState">正在定位 resources/app...</span>
-                <span class="adapter-state">适配器 v0.3.8</span>
+                <span class="adapter-state">适配器 v0.3.9</span>
                 <span id="cursorCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
               </div>
               <button class="primary-button configure-button" data-open-app="cursor">配置汉化 <span>→</span></button>
@@ -156,6 +156,16 @@
               <button class="primary-button configure-button" data-open-app="claude">配置汉化 <span>→</span></button>
             </article>
           </div>
+
+          <article id="extensionOverviewCard" class="runtime-card extension-overview-card" aria-live="polite">
+            <div class="runtime-icon">MCP</div>
+            <div class="runtime-content">
+              <div class="runtime-title-row"><div><h3>扩展健康概览</h3><span>Cursor 与 Claude Code</span></div><span id="extensionOverviewState" class="pill neutral">等待扫描</span></div>
+              <p id="extensionOverviewMessage">进入扩展管理后会显示异常 MCP、风险 Skill 和本地修改项目.</p>
+              <div class="runtime-facts"><span>异常项目<strong id="extensionOverviewIssues">0</strong></span><span>MCP<strong id="extensionOverviewMcp">0</strong></span><span>Skill<strong id="extensionOverviewSkills">0</strong></span></div>
+            </div>
+            <button id="openExtensionsOverviewButton" class="secondary-button">打开扩展管理</button>
+          </article>
 
           <section id="usage" class="usage-section scroll-anchor">
             <div class="section-heading usage-heading">
@@ -295,6 +305,10 @@
               </div>
               <button id="refreshExtensionsButton" class="secondary-button"><span>↻</span>刷新配置</button>
             </div>
+            <div id="extensionQuickStartGuide" class="extension-quick-start">
+              <div><strong>首次使用扩展管理</strong><span>1. 选择目标和作用域. 2. 自动发现已有配置. 3. 检测 MCP 或从市场安装. 4. 所有修改都可以在历史回滚中恢复.</span></div>
+              <button id="dismissExtensionGuideButton" class="text-button">我知道了</button>
+            </div>
 
             <div class="extension-toolbar">
               <div class="extension-segment" aria-label="目标应用">
@@ -318,6 +332,7 @@
                 <small id="extensionActivityDetail">请稍候, 完成后会自动刷新当前状态.</small>
               </div>
             </div>
+            <div id="extensionRiskBanner" class="extension-risk-banner hidden" role="status" aria-live="polite"></div>
 
             <div class="extension-summary-grid">
               <article><span>MCP 已启用</span><strong id="extensionMcpCount">0</strong><small>个服务</small></article>
@@ -327,11 +342,21 @@
             </div>
 
             <div class="extension-content-card">
+              <div id="extensionListTools" class="extension-list-tools">
+                <input id="extensionSearchInput" type="search" placeholder="搜索名称、描述、端点或来源" aria-label="搜索扩展" />
+                <select id="extensionStatusFilter" aria-label="筛选扩展状态"><option value="all">全部状态</option><option value="enabled">仅已启用</option><option value="disabled">仅已停用</option><option value="issues">仅异常或风险</option></select>
+                <span id="extensionSelectedCount">已选择 0 项</span>
+                <button id="batchEnableExtensionsButton" class="secondary-button">批量启用</button>
+                <button id="batchDisableExtensionsButton" class="secondary-button">批量停用</button>
+                <button id="clearExtensionSelectionButton" class="text-button">清除选择</button>
+              </div>
               <div class="extension-tabs" role="tablist">
                 <button id="extensionMcpTab" class="active" data-extension-tab="mcp" role="tab" aria-selected="true" aria-controls="extensionMcpPanel">MCP 服务</button>
                 <button id="extensionSkillTab" data-extension-tab="skill" role="tab" aria-selected="false" aria-controls="extensionSkillPanel" tabindex="-1">Agent Skills</button>
                 <button id="extensionPromptTab" data-extension-tab="prompt" role="tab" aria-selected="false" aria-controls="extensionPromptPanel" tabindex="-1">提示词</button>
                 <button id="extensionMarketTab" data-extension-tab="market" role="tab" aria-selected="false" aria-controls="extensionMarketPanel" tabindex="-1">扩展市场</button>
+                <button id="extensionHistoryTab" data-extension-tab="history" role="tab" aria-selected="false" aria-controls="extensionHistoryPanel" tabindex="-1">历史回滚</button>
+                <button id="extensionTransferTab" data-extension-tab="transfer" role="tab" aria-selected="false" aria-controls="extensionTransferPanel" tabindex="-1">迁移导入</button>
               </div>
 
               <section id="extensionMcpPanel" class="extension-panel" role="tabpanel" aria-labelledby="extensionMcpTab">
@@ -339,6 +364,7 @@
                   <div><h3>MCP 服务</h3><p>支持 stdio、HTTP 和 SSE. 已保存的环境变量与请求头不会返回前端.</p></div>
                   <div class="extension-heading-actions">
                     <button class="text-button" data-open-extension-location="mcp">打开配置目录</button>
+                    <button id="checkAllMcpButton" class="secondary-button">检测全部</button>
                     <button id="addMcpButton" class="primary-button">添加 MCP</button>
                   </div>
                 </div>
@@ -380,6 +406,52 @@
                 <div id="extensionMarketState" class="extension-empty-state" role="status" aria-live="polite">打开市场后检查 GitHub 最新版本...</div>
                 <div id="extensionMarketList" class="extension-item-grid market-grid" aria-live="polite"></div>
               </section>
+
+              <section id="extensionHistoryPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionHistoryTab">
+                <div class="extension-panel-heading">
+                  <div><h3>配置历史与回滚</h3><p>每次修改前保存完整 MCP、Skill、提示词和来源注册表快照. 恢复前会再次备份当前状态.</p></div>
+                  <div class="extension-heading-actions">
+                    <button id="refreshExtensionHistoryButton" class="secondary-button">刷新历史</button>
+                  </div>
+                </div>
+                <div id="extensionHistoryState" class="extension-empty-state" role="status" aria-live="polite">打开历史回滚后读取记录...</div>
+                <div id="extensionHistoryList" class="extension-history-list" aria-live="polite"></div>
+              </section>
+
+              <section id="extensionTransferPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionTransferTab">
+                <div class="extension-panel-heading">
+                  <div><h3>迁移、导入与导出</h3><p>复制操作在 Rust 后端保留密钥, 同名项目必须明确选择跳过或覆盖. 脱敏包仅用于审查, 私密包可完整恢复.</p></div>
+                </div>
+                <div class="extension-transfer-grid">
+                  <article class="extension-transfer-card">
+                    <span class="extension-transfer-kicker">COPY</span>
+                    <h4>复制到另一个应用</h4>
+                    <p>复制当前作用域中的 MCP、完整 Skill 目录和提示词, 并自动转换目标配置格式.</p>
+                    <label class="extension-field"><span>目标应用</span><select id="extensionCopyTarget"><option value="claude-code">Claude Code</option><option value="cursor">Cursor</option></select></label>
+                    <button id="previewExtensionCopyButton" class="primary-button">预检复制差异</button>
+                  </article>
+                  <article class="extension-transfer-card">
+                    <span class="extension-transfer-kicker">EXPORT</span>
+                    <h4>导出配置包</h4>
+                    <p>脱敏包适合审查和分享. 私密包包含 MCP 密钥, 文件权限会限制为当前用户.</p>
+                    <div class="extension-transfer-actions"><button id="exportRedactedBundleButton" class="secondary-button">导出脱敏包</button><button id="exportPrivateBundleButton" class="secondary-button danger-soft">导出私密包</button></div>
+                  </article>
+                  <article class="extension-transfer-card">
+                    <span class="extension-transfer-kicker">IMPORT</span>
+                    <h4>导入配置包</h4>
+                    <p id="extensionImportPath">尚未选择配置包.</p>
+                    <button id="chooseExtensionImportButton" class="primary-button">选择并预检配置包</button>
+                  </article>
+                </div>
+                <div id="extensionTransferPreview" class="extension-transfer-preview hidden" aria-live="polite">
+                  <div><h4 id="extensionTransferPreviewTitle">迁移预检</h4><p id="extensionTransferPreviewSummary">--</p></div>
+                  <div id="extensionTransferConflicts" class="extension-transfer-conflicts"></div>
+                  <div class="extension-transfer-footer">
+                    <label><span>同名冲突处理</span><select id="extensionConflictPolicy"><option value="fail">发现冲突时停止</option><option value="skip">跳过同名项目</option><option value="overwrite">覆盖同名项目</option></select></label>
+                    <button id="applyExtensionTransferButton" class="primary-button">执行迁移</button>
+                  </div>
+                </div>
+              </section>
             </div>
           </section>
 
@@ -409,7 +481,7 @@
               </div>
               <div class="about-hero-emblem" aria-hidden="true">
                 <strong>译</strong>
-                <span class="about-version-badge">v0.3.8</span>
+                <span class="about-version-badge">v0.3.9</span>
               </div>
             </div>
 
@@ -440,12 +512,13 @@
                   <span id="updateState" class="pill neutral">正在检查</span>
                 </div>
                 <div class="update-version-facts">
-                  <span>当前版本<strong id="updateCurrentVersion">v0.3.8</strong></span>
+                  <span>当前版本<strong id="updateCurrentVersion">v0.3.9</strong></span>
                   <span>最新版本<strong id="updateLatestVersion">--</strong></span>
                 </div>
                 <p id="updateMessage" class="update-message">正在连接 GitHub 检查正式发行版...</p>
                 <div class="about-actions">
                   <button id="checkUpdateButton" class="secondary-button"><span>↻</span>重新检查</button>
+                  <button id="downloadUpdateButton" class="primary-button hidden">下载并校验更新包</button>
                   <button id="viewUpdateButton" class="primary-button hidden" data-project-page="releases">查看新版本</button>
                 </div>
               </article>

@@ -5,6 +5,7 @@ const state = {
   usageLoading: false,
   updateStatus: null,
   updateLoading: false,
+  updateDownloading: false,
   githubProjects: [],
   githubProjectsLoading: false,
   githubProjectsLoaded: false,
@@ -13,7 +14,16 @@ const state = {
   extensionWorkspace: "",
   extensionTab: "mcp",
   extensionInventory: null,
+  extensionMcpHealth: {},
   extensionMarket: [],
+  extensionHistory: [],
+  extensionHistoryLoading: false,
+  extensionTransferPreview: null,
+  extensionTransferMode: "",
+  extensionImportPath: "",
+  extensionSelection: new Set(),
+  extensionSearch: "",
+  extensionStatusFilter: "all",
   extensionMarketLoading: false,
   extensionLoading: false,
   extensionRunning: false,
@@ -29,6 +39,7 @@ const state = {
 };
 
 const FIRST_RUN_CONSENT_KEY = "i18nWorkbench.firstRunConsent.v2";
+const EXTENSION_GUIDE_KEY = "i18nWorkbench.extensionGuide.v1";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -41,6 +52,9 @@ const requestedBrowserPreview = !invoke
   : null;
 const requestedBrowserEditor = !invoke
   ? new URLSearchParams(window.location.search).get("editor")
+  : null;
+const requestedBrowserTab = !invoke
+  ? new URLSearchParams(window.location.search).get("tab")
   : null;
 const browserPreviewSection = ["about", "extensions"].includes(requestedBrowserPreview)
   ? requestedBrowserPreview
@@ -155,7 +169,7 @@ function browserFallbackApps() {
   return [
     {
       id: "cursor", name: "Cursor", installed: true, ready: true, path: "浏览器预览模式",
-      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.3.8",
+      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.3.9",
       backupAvailable: true, backupPath: "浏览器预览模式\\backup\\preview", backupFiles: 7,
       backupMessage: "浏览器预览样例: 7 个文件已通过完整性校验", localized: false, reason: null,
       autoCompatible: true, compatibilityMessage: "已按资源结构自动适配未来 Cursor 版本, 安装前仍会执行完整语法预检",
@@ -213,13 +227,13 @@ function browserFallbackUsage() {
 
 function browserFallbackUpdateStatus() {
   return {
-    currentVersion: "0.3.8",
-    latestVersion: "0.3.8",
+    currentVersion: "0.3.9",
+    latestVersion: "0.3.9",
     updateAvailable: false,
     currentAhead: false,
     releaseUrl: "https://github.com/svipm/cursor-i18n-zh/releases",
     publishedAt: new Date().toISOString(),
-    message: "浏览器预览样例: 当前 v0.3.8 已是最新版本",
+    message: "浏览器预览样例: 当前 v0.3.9 已是最新版本",
   };
 }
 
@@ -259,33 +273,34 @@ function browserFallbackExtensionInventory(query) {
     enabledSkillCount: 2,
     enabledPromptCount: cursor && query.scope === "user" ? 0 : 1,
     promptEditable: !(cursor && query.scope === "user"),
+    capabilities: ["mcp", "skills", "health-check", "transfer", ...(!(cursor && query.scope === "user") ? ["prompts"] : [])],
     promptNote: cursor && query.scope === "user"
       ? "Cursor 全局 User Rules 只能在 Customize > Rules 中维护. 请选择项目级规则."
       : "当前范围支持文件化提示词规则.",
     note: query.scope === "project" ? "项目级配置仅作用于当前选择的工作区" : "用户级配置会作用于当前系统账号",
     mcpServers: [
-      { name: "filesystem", transport: "stdio", endpoint: "npx", enabled: true, envKeys: ["ROOT_PATH"], headerKeys: [], argsCount: 2, source: query.scope === "project" ? "项目级" : "用户级" },
-      { name: "github", transport: "http", endpoint: "https://api.example.com/mcp", enabled: true, envKeys: [], headerKeys: ["Authorization"], argsCount: 0, source: query.scope === "project" ? "项目级" : "用户级" },
-      { name: "database", transport: "stdio", endpoint: "node", enabled: false, envKeys: ["DATABASE_URL"], headerKeys: [], argsCount: 1, source: query.scope === "project" ? "项目级" : "用户级" },
+      { name: "filesystem", transport: "stdio", endpoint: "npx", enabled: true, envKeys: ["ROOT_PATH"], headerKeys: [], argsCount: 2, source: query.scope === "project" ? "项目级" : "用户级", localModified: false },
+      { name: "github", transport: "http", endpoint: "https://api.example.com/mcp", enabled: true, envKeys: [], headerKeys: ["Authorization"], argsCount: 0, source: query.scope === "project" ? "项目级" : "用户级", localModified: true },
+      { name: "database", transport: "stdio", endpoint: "node", enabled: false, envKeys: ["DATABASE_URL"], headerKeys: [], argsCount: 1, source: query.scope === "project" ? "项目级" : "用户级", localModified: false },
     ],
     skills: [
-      { id: "code-review", name: "code-review", description: "在用户要求代码审查和质量检查时使用.", enabled: true, builtIn: false, source: query.scope === "project" ? "项目级" : "用户级", path: "preview" },
-      { id: "release-helper", name: "release-helper", description: "生成发布说明并检查版本一致性.", enabled: true, builtIn: false, source: query.scope === "project" ? "项目级" : "用户级", path: "preview" },
+      { id: "code-review", name: "code-review", description: "在用户要求代码审查和质量检查时使用.", enabled: true, builtIn: false, source: query.scope === "project" ? "项目级" : "用户级", path: "preview", localModified: false, audit: { riskLevel: "low", riskScore: 10, findings: [], fileCount: 3, sha256: "0123456789abcdef", trustedSource: true, hasScripts: false, hasNetworkAccess: false, hasShellCommands: false } },
+      { id: "release-helper", name: "release-helper", description: "生成发布说明并检查版本一致性.", enabled: true, builtIn: false, source: query.scope === "project" ? "项目级" : "用户级", path: "preview", localModified: false, audit: { riskLevel: "medium", riskScore: 35, findings: ["包含 Shell 命令"], fileCount: 4, sha256: "fedcba9876543210", trustedSource: false, hasScripts: true, hasNetworkAccess: false, hasShellCommands: true } },
       ...(cursor && query.scope === "user" ? [{ id: "builtin-browser", name: "builtin-browser", description: "Cursor 内置 Skill 示例, 仅支持查看.", enabled: true, builtIn: true, source: "Cursor 内置", path: "preview" }] : []),
     ],
     prompts: cursor && query.scope === "user" ? [] : [
-      { id: "engineering-quality", name: "engineering-quality", description: "工程质量和验证闭环规则.", enabled: true, source: query.scope === "project" ? "项目级" : "用户级", path: "preview", repository: "https://github.com/svipm/cursor-i18n-zh", revision: "preview" },
+      { id: "engineering-quality", name: "engineering-quality", description: "工程质量和验证闭环规则.", enabled: true, source: query.scope === "project" ? "项目级" : "用户级", path: "preview", repository: "https://github.com/svipm/cursor-i18n-zh", revision: "preview", localModified: false },
     ],
   };
 }
 
 function browserFallbackMarket(query) {
   return [
-    { id: "playwright-mcp", kind: "mcp", name: "playwright", title: "Playwright MCP", description: "让 Agent 操作浏览器.", repository: "https://github.com/microsoft/playwright-mcp", installed: false, updateAvailable: false, status: "未安装" },
-    { id: "anthropic-frontend-design", kind: "skill", name: "frontend-design", title: "Frontend Design", description: "Anthropic 官方前端设计 Skill.", repository: "https://github.com/anthropics/skills", installed: false, updateAvailable: false, status: "未安装" },
+    { id: "playwright-mcp", kind: "mcp", name: "playwright", title: "Playwright MCP", description: "让 Agent 操作浏览器.", repository: "https://github.com/microsoft/playwright-mcp", trust: "official", license: "Apache-2.0", installed: false, updateAvailable: false, localModified: false, status: "未安装" },
+    { id: "anthropic-frontend-design", kind: "skill", name: "frontend-design", title: "Frontend Design", description: "Anthropic 官方前端设计 Skill.", repository: "https://github.com/anthropics/skills", trust: "official", license: "Apache-2.0", installed: false, updateAvailable: false, localModified: false, status: "未安装" },
     ...(query.target === "cursor"
-      ? [{ id: "cursor-code-review-prompt", kind: "prompt", name: "code-review", title: "Cursor 代码审查规则", description: "根因优先的代码审查提示词.", repository: "https://github.com/svipm/cursor-i18n-zh", installed: false, updateAvailable: false, status: "未安装" }]
-      : [{ id: "claude-code-engineering-prompt", kind: "prompt", name: "engineering-quality", title: "Claude Code 工程质量规则", description: "工程质量和验证闭环提示词.", repository: "https://github.com/svipm/cursor-i18n-zh", installed: true, updateAvailable: false, status: "已安装" }]),
+      ? [{ id: "cursor-code-review-prompt", kind: "prompt", name: "code-review", title: "Cursor 代码审查规则", description: "根因优先的代码审查提示词.", repository: "https://github.com/svipm/cursor-i18n-zh", trust: "official", license: "MIT", installed: false, updateAvailable: false, localModified: false, status: "未安装" }]
+      : [{ id: "claude-code-engineering-prompt", kind: "prompt", name: "engineering-quality", title: "Claude Code 工程质量规则", description: "工程质量和验证闭环提示词.", repository: "https://github.com/svipm/cursor-i18n-zh", trust: "official", license: "MIT", installed: true, updateAvailable: false, localModified: false, status: "已安装" }]),
   ];
 }
 
@@ -619,6 +634,7 @@ function renderUpdateStatus(status, notify = false) {
   $("#updateLatestVersion").textContent = `v${status.latestVersion}`;
   $("#updateMessage").textContent = status.message;
   $("#viewUpdateButton").classList.toggle("hidden", !status.updateAvailable);
+  $("#downloadUpdateButton").classList.toggle("hidden", !status.updateAvailable);
   if (notify && status.updateAvailable) {
     showToast(`发现新版本 v${status.latestVersion}, 不会强制更新.`, "warning");
   }
@@ -653,6 +669,27 @@ async function loadUpdateStatus({ notify = false } = {}) {
     state.updateLoading = false;
     button.disabled = false;
     button.classList.remove("scanning");
+  }
+}
+
+async function downloadLatestUpdate() {
+  if (state.updateDownloading) return;
+  state.updateDownloading = true;
+  const button = $("#downloadUpdateButton");
+  setButtonBusy(button, true, "下载中...");
+  try {
+    const result = invoke
+      ? await invoke("download_latest_update")
+      : { version: "0.3.9", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo" };
+    addLog("DONE", `更新包 v${result.version} 已下载并通过 SHA256 校验: ${result.path}`);
+    showToast(`更新包 v${result.version} 已准备完成.`, "success");
+    if (invoke) await invoke("open_downloaded_update", { path: result.path });
+  } catch (error) {
+    addLog("WARN", `更新包下载失败: ${normalizeError(error)}`);
+    showToast("更新包下载或校验失败.", "warning");
+  } finally {
+    state.updateDownloading = false;
+    setButtonBusy(button, false);
   }
 }
 
@@ -919,8 +956,264 @@ function updateExtensionControls() {
   $("#extensionSkillPanel").classList.toggle("hidden", state.extensionTab !== "skill");
   $("#extensionPromptPanel").classList.toggle("hidden", state.extensionTab !== "prompt");
   $("#extensionMarketPanel").classList.toggle("hidden", state.extensionTab !== "market");
-  for (const [name, panel] of [["mcp", "#extensionMcpPanel"], ["skill", "#extensionSkillPanel"], ["prompt", "#extensionPromptPanel"], ["market", "#extensionMarketPanel"]]) {
+  $("#extensionHistoryPanel").classList.toggle("hidden", state.extensionTab !== "history");
+  $("#extensionTransferPanel").classList.toggle("hidden", state.extensionTab !== "transfer");
+  for (const [name, panel] of [["mcp", "#extensionMcpPanel"], ["skill", "#extensionSkillPanel"], ["prompt", "#extensionPromptPanel"], ["market", "#extensionMarketPanel"], ["history", "#extensionHistoryPanel"], ["transfer", "#extensionTransferPanel"]]) {
     $(panel).setAttribute("aria-hidden", String(state.extensionTab !== name));
+  }
+  if ($("#extensionCopyTarget").value === state.extensionTarget) {
+    $("#extensionCopyTarget").value = state.extensionTarget === "cursor" ? "claude-code" : "cursor";
+  }
+  updateExtensionSelectionControls();
+}
+
+function renderExtensionHistory(records) {
+  const list = $("#extensionHistoryList");
+  list.replaceChildren();
+  if (!records.length) {
+    $("#extensionHistoryState").textContent = "当前目标和作用域还没有修改历史.";
+    $("#extensionHistoryState").classList.remove("hidden", "error");
+    return;
+  }
+  $("#extensionHistoryState").classList.add("hidden");
+  records.forEach((record) => {
+    const card = document.createElement("article");
+    card.className = "extension-history-card";
+    const heading = document.createElement("div");
+    heading.className = "extension-history-heading";
+    const title = document.createElement("div");
+    const name = document.createElement("h4");
+    name.textContent = record.summary;
+    const meta = document.createElement("p");
+    meta.textContent = `${formatBackupTime(record)} · ${record.targetLabel} · ${record.scope === "project" ? "项目级" : "用户级"}`;
+    title.append(name, meta);
+    const count = document.createElement("span");
+    count.textContent = `${(record.changes || []).length} 项变更`;
+    heading.append(title, count);
+    const changes = document.createElement("div");
+    changes.className = "extension-history-changes";
+    (record.changes || []).slice(0, 6).forEach((change) => {
+      const row = document.createElement("span");
+      row.className = change.kind;
+      row.textContent = `${change.kind === "added" ? "+" : change.kind === "deleted" ? "-" : "~"} ${change.path}`;
+      changes.appendChild(row);
+    });
+    if ((record.changes || []).length > 6) {
+      const more = document.createElement("span");
+      more.textContent = `另有 ${(record.changes || []).length - 6} 项变更`;
+      changes.appendChild(more);
+    }
+    const actions = document.createElement("div");
+    actions.className = "extension-item-actions";
+    const restore = createExtensionButton("恢复到此状态", "restore-history", record.id);
+    restore.dataset.historyId = record.id;
+    restore.disabled = !record.canRestore;
+    actions.appendChild(restore);
+    card.append(heading, changes, actions);
+    list.appendChild(card);
+  });
+}
+
+async function loadExtensionHistory() {
+  if (state.extensionHistoryLoading) return;
+  if (state.extensionScope === "project" && !state.extensionWorkspace) {
+    renderExtensionHistory([]);
+    return;
+  }
+  state.extensionHistoryLoading = true;
+  setButtonBusy($("#refreshExtensionHistoryButton"), true, "刷新中...");
+  try {
+    const query = extensionQuery();
+    state.extensionHistory = invoke ? await invoke("extension_history", { query }) : [];
+    renderExtensionHistory(state.extensionHistory);
+  } catch (error) {
+    $("#extensionHistoryState").textContent = normalizeError(error);
+    $("#extensionHistoryState").classList.remove("hidden");
+    $("#extensionHistoryState").classList.add("error");
+  } finally {
+    state.extensionHistoryLoading = false;
+    setButtonBusy($("#refreshExtensionHistoryButton"), false);
+  }
+}
+
+async function restoreExtensionHistory(id, triggerButton) {
+  if (state.extensionRunning) return;
+  if (!window.confirm("确定恢复到这条历史记录修改前的状态吗? 当前配置会先生成一条新的可恢复快照.")) return;
+  state.extensionRunning = true;
+  setButtonBusy(triggerButton, true, "恢复中...");
+  setExtensionActivity(true, "正在恢复扩展配置", "正在校验快照并原子替换 MCP、Skill、提示词和来源注册表.");
+  try {
+    const request = { ...extensionQuery(), id };
+    const result = invoke
+      ? await invoke("extension_restore_history", { request })
+      : { message: "扩展配置已恢复", inventory: state.extensionInventory };
+    renderExtensionInventory(result.inventory);
+    await loadExtensionHistory();
+    addLog("DONE", result.message);
+    showToast("扩展配置已恢复.", "success");
+  } catch (error) {
+    const message = normalizeError(error);
+    addLog("WARN", `扩展历史恢复失败: ${message}`);
+    showToast("扩展历史恢复失败.", "warning");
+  } finally {
+    state.extensionRunning = false;
+    setButtonBusy(triggerButton, false);
+    setExtensionActivity(false);
+  }
+}
+
+function destinationExtensionQuery() {
+  return {
+    target: $("#extensionCopyTarget").value,
+    scope: state.extensionScope,
+    workspace: state.extensionScope === "project" ? state.extensionWorkspace : null,
+  };
+}
+
+function renderTransferPreview(preview, mode) {
+  state.extensionTransferPreview = preview;
+  state.extensionTransferMode = mode;
+  const source = preview.sourceTarget === "cursor" ? "Cursor" : "Claude Code";
+  const destination = preview.destinationTarget === "cursor" ? "Cursor" : "Claude Code";
+  $("#extensionTransferPreviewTitle").textContent = `${source} → ${destination}`;
+  $("#extensionTransferPreviewSummary").textContent = `MCP ${preview.mcpCount}, Skill ${preview.skillCount}, 提示词 ${preview.promptCount}, 同名冲突 ${(preview.conflicts || []).length}. ${preview.includesSecrets ? "密钥可完整迁移." : "配置包已脱敏."}`;
+  const conflicts = $("#extensionTransferConflicts");
+  conflicts.replaceChildren();
+  (preview.conflicts || []).forEach((conflict) => {
+    const row = document.createElement("article");
+    const name = document.createElement("strong");
+    name.textContent = `${String(conflict.kind).toUpperCase()} · ${conflict.name}`;
+    const summary = document.createElement("span");
+    summary.textContent = conflict.summary;
+    row.append(name, summary);
+    conflicts.appendChild(row);
+  });
+  if (!conflicts.childElementCount) {
+    const row = document.createElement("article");
+    const name = document.createElement("strong");
+    name.textContent = "未发现同名冲突";
+    const summary = document.createElement("span");
+    summary.textContent = "可以直接执行迁移.";
+    row.append(name, summary);
+    conflicts.appendChild(row);
+  }
+  $("#extensionConflictPolicy").value = (preview.conflicts || []).length ? "fail" : "overwrite";
+  $("#extensionTransferPreview").classList.remove("hidden");
+}
+
+async function previewExtensionCopy() {
+  if (state.extensionRunning) return;
+  const destination = destinationExtensionQuery();
+  if (destination.target === state.extensionTarget) {
+    showToast("复制目标不能与当前应用相同.", "warning");
+    return;
+  }
+  if (destination.scope === "project" && !destination.workspace) {
+    showToast("请先选择项目工作区.", "warning");
+    return;
+  }
+  const button = $("#previewExtensionCopyButton");
+  setButtonBusy(button, true, "预检中...");
+  try {
+    const request = { source: extensionQuery(), destination };
+    const preview = invoke
+      ? await invoke("extension_preview_copy", { request })
+      : { sourceTarget: state.extensionTarget, destinationTarget: destination.target, mcpCount: 2, skillCount: 1, promptCount: 1, conflicts: [], includesSecrets: true };
+    renderTransferPreview(preview, "copy");
+  } catch (error) {
+    showToast("扩展复制预检失败.", "warning");
+    addLog("WARN", `扩展复制预检失败: ${normalizeError(error)}`);
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function exportExtensionBundle(includeSecrets) {
+  if (state.extensionRunning) return;
+  if (includeSecrets && !window.confirm("私密配置包会包含 MCP 密钥、环境变量和请求头. 请只保存在可信位置, 是否继续?")) return;
+  const button = includeSecrets ? $("#exportPrivateBundleButton") : $("#exportRedactedBundleButton");
+  setButtonBusy(button, true, "导出中...");
+  try {
+    const path = invoke
+      ? await invoke("choose_extension_bundle_path", { mode: "save" })
+      : "D:\\Downloads\\i18n-workbench-extensions.json";
+    if (!path) return;
+    const request = { ...extensionQuery(), path, includeSecrets };
+    const result = invoke
+      ? await invoke("extension_export_bundle", { request })
+      : { path, includesSecrets: includeSecrets, mcpCount: 2, skillCount: 1, promptCount: 1 };
+    addLog("DONE", `扩展配置包已导出: ${result.path}`);
+    showToast(includeSecrets ? "私密配置包已导出." : "脱敏配置包已导出.", "success");
+  } catch (error) {
+    addLog("WARN", `扩展配置包导出失败: ${normalizeError(error)}`);
+    showToast("扩展配置包导出失败.", "warning");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function chooseAndPreviewExtensionImport() {
+  if (state.extensionRunning) return;
+  const button = $("#chooseExtensionImportButton");
+  setButtonBusy(button, true, "读取中...");
+  try {
+    const path = invoke
+      ? await invoke("choose_extension_bundle_path", { mode: "open" })
+      : "D:\\Downloads\\i18n-workbench-extensions.json";
+    if (!path) return;
+    state.extensionImportPath = path;
+    $("#extensionImportPath").textContent = path;
+    $("#extensionImportPath").title = path;
+    const request = { ...extensionQuery(), path };
+    const preview = invoke
+      ? await invoke("extension_preview_import", { request })
+      : { sourceTarget: "claude-code", destinationTarget: state.extensionTarget, mcpCount: 2, skillCount: 1, promptCount: 1, conflicts: [], includesSecrets: true };
+    renderTransferPreview(preview, "import");
+  } catch (error) {
+    addLog("WARN", `配置包预检失败: ${normalizeError(error)}`);
+    showToast("配置包预检失败.", "warning");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function applyExtensionTransfer() {
+  if (state.extensionRunning || !state.extensionTransferPreview) return;
+  const policy = $("#extensionConflictPolicy").value;
+  const conflicts = state.extensionTransferPreview.conflicts || [];
+  if (conflicts.length && policy === "fail") {
+    showToast("存在同名冲突, 请明确选择跳过或覆盖.", "warning");
+    return;
+  }
+  if (policy === "overwrite" && conflicts.length && !window.confirm(`将覆盖 ${conflicts.length} 个同名项目. 当前状态会先进入历史快照, 是否继续?`)) return;
+  const button = $("#applyExtensionTransferButton");
+  state.extensionRunning = true;
+  setButtonBusy(button, true, "执行中...");
+  setExtensionActivity(true, "正在迁移扩展配置", "正在写入 MCP、完整 Skill 目录和提示词, 失败时自动恢复操作前快照.");
+  try {
+    let result;
+    if (state.extensionTransferMode === "copy") {
+      const request = { source: extensionQuery(), destination: destinationExtensionQuery(), conflictPolicy: policy };
+      result = invoke ? await invoke("extension_copy", { request }) : { message: "扩展复制完成", inventory: state.extensionInventory };
+    } else {
+      const request = { ...extensionQuery(), path: state.extensionImportPath, conflictPolicy: policy };
+      result = invoke ? await invoke("extension_import_bundle", { request }) : { message: "配置包导入完成", inventory: state.extensionInventory };
+    }
+    if (state.extensionTransferMode === "import") {
+      renderExtensionInventory(result.inventory);
+      await loadExtensionHistory();
+    }
+    $("#extensionTransferPreview").classList.add("hidden");
+    state.extensionTransferPreview = null;
+    addLog("DONE", result.message);
+    showToast("扩展迁移完成.", "success");
+  } catch (error) {
+    addLog("WARN", `扩展迁移失败: ${normalizeError(error)}`);
+    showToast("扩展迁移失败, 已尝试自动回滚.", "warning");
+  } finally {
+    state.extensionRunning = false;
+    setButtonBusy(button, false);
+    setExtensionActivity(false);
   }
 }
 
@@ -965,16 +1258,107 @@ function createExtensionButton(label, action, name, tone = "") {
   return button;
 }
 
+function extensionMcpHealthKey(name) {
+  return JSON.stringify([state.extensionTarget, state.extensionScope, state.extensionWorkspace || "", name]);
+}
+
+function extensionSelectionKey(kind, name) {
+  return `${kind}:${name}`;
+}
+
+function currentExtensionKind() {
+  return ["mcp", "skill", "prompt"].includes(state.extensionTab) ? state.extensionTab : "";
+}
+
+function extensionMatchesFilter(item, kind) {
+  const query = state.extensionSearch.trim().toLowerCase();
+  const searchable = [item.name, item.description, item.endpoint, item.source, item.repository]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (query && !searchable.includes(query)) return false;
+  if (state.extensionStatusFilter === "enabled" && !item.enabled) return false;
+  if (state.extensionStatusFilter === "disabled" && item.enabled) return false;
+  if (state.extensionStatusFilter === "issues") {
+    const health = kind === "mcp" ? state.extensionMcpHealth[extensionMcpHealthKey(item.name)] : null;
+    const issue = item.localModified
+      || health?.status === "failed"
+      || ["high", "invalid"].includes(item.audit?.riskLevel);
+    if (!issue) return false;
+  }
+  return true;
+}
+
+function createExtensionSelector(kind, name, disabled = false) {
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.className = "extension-item-select";
+  input.dataset.extensionSelectKind = kind;
+  input.dataset.extensionSelectName = name;
+  input.checked = state.extensionSelection.has(extensionSelectionKey(kind, name));
+  input.disabled = disabled;
+  input.setAttribute("aria-label", `选择 ${name}`);
+  return input;
+}
+
+function clearExtensionSelection() {
+  state.extensionSelection.clear();
+  updateExtensionSelectionControls();
+  if (state.extensionInventory) renderExtensionInventory(state.extensionInventory);
+}
+
+function updateExtensionSelectionControls() {
+  const kind = currentExtensionKind();
+  const names = [...state.extensionSelection].filter((key) => key.startsWith(`${kind}:`));
+  $("#extensionSelectedCount").textContent = `已选择 ${names.length} 项`;
+  $("#batchEnableExtensionsButton").disabled = !names.length;
+  $("#batchDisableExtensionsButton").disabled = !names.length;
+  $("#clearExtensionSelectionButton").disabled = !state.extensionSelection.size;
+  $("#extensionListTools").classList.toggle("hidden", !kind);
+}
+
+async function batchToggleExtensions(enabled) {
+  const kind = currentExtensionKind();
+  const names = [...state.extensionSelection]
+    .filter((key) => key.startsWith(`${kind}:`))
+    .map((key) => key.slice(kind.length + 1));
+  if (!kind || !names.length || state.extensionRunning) return;
+  const button = enabled ? $("#batchEnableExtensionsButton") : $("#batchDisableExtensionsButton");
+  state.extensionRunning = true;
+  setButtonBusy(button, true, "处理中...");
+  setExtensionActivity(true, `正在批量${enabled ? "启用" : "停用"}`, `已选择 ${names.length} 个项目, 操作前会创建完整历史快照.`);
+  try {
+    const request = { ...extensionQuery(), kind, names, enabled };
+    const result = invoke
+      ? await invoke("extension_batch_toggle", { request })
+      : { message: "批量操作完成", inventory: state.extensionInventory };
+    state.extensionSelection.clear();
+    renderExtensionInventory(result.inventory);
+    addLog("DONE", result.message);
+    showToast(result.message, "success");
+  } catch (error) {
+    addLog("WARN", `扩展批量操作失败: ${normalizeError(error)}`);
+    showToast("扩展批量操作失败.", "warning");
+  } finally {
+    state.extensionRunning = false;
+    setButtonBusy(button, false);
+    setExtensionActivity(false);
+    updateExtensionSelectionControls();
+  }
+}
+
 function renderExtensionMcp(servers) {
   const list = $("#extensionMcpList");
   list.replaceChildren();
-  if (!servers.length) {
-    setExtensionEmptyState("Mcp", "当前范围没有 MCP 服务. 点击“添加 MCP”创建第一个配置.");
+  const visible = servers.filter((server) => extensionMatchesFilter(server, "mcp"));
+  if (!visible.length) {
+    setExtensionEmptyState("Mcp", servers.length ? "没有符合当前搜索和筛选条件的 MCP 服务." : "当前范围没有 MCP 服务. 点击“添加 MCP”创建第一个配置.");
     return;
   }
   $("#extensionMcpState").classList.add("hidden");
-  servers.forEach((server) => {
+  visible.forEach((server) => {
     const market = marketStatusFor("mcp", server.name);
+    const health = state.extensionMcpHealth[extensionMcpHealthKey(server.name)] || null;
     const card = document.createElement("article");
     card.className = `extension-item-card${server.enabled ? "" : " disabled"}`;
     const header = document.createElement("div");
@@ -991,9 +1375,19 @@ function renderExtensionMcp(servers) {
     title.append(heading, endpoint);
     const status = document.createElement("span");
     status.className = "extension-state-pill";
-    status.textContent = market?.updateAvailable ? "有更新" : server.enabled ? "已启用" : "已停用";
+    status.textContent = market?.localModified
+      ? "本地已修改"
+      : market?.updateAvailable
+      ? "有更新"
+      : health?.status === "healthy"
+        ? "连接正常"
+        : health?.status === "failed"
+          ? "检测失败"
+          : server.enabled ? "已启用" : "已停用";
     status.classList.toggle("update", Boolean(market?.updateAvailable));
-    header.append(icon, title, status);
+    status.classList.toggle("modified", Boolean(market?.localModified));
+    status.classList.toggle("failed", health?.status === "failed");
+    header.append(createExtensionSelector("mcp", server.name), icon, title, status);
 
     const description = document.createElement("p");
     description.className = "extension-item-description";
@@ -1012,9 +1406,19 @@ function renderExtensionMcp(servers) {
       tag.textContent = "无敏感字段";
       tags.appendChild(tag);
     }
+    const healthSummary = document.createElement("div");
+    healthSummary.className = `mcp-health-summary${health ? ` ${health.status}` : ""}`;
+    if (health) {
+      const protocol = health.protocolVersion ? ` · 协议 ${health.protocolVersion}` : "";
+      healthSummary.textContent = `${health.summary} · ${health.latencyMs} ms${protocol}`;
+      healthSummary.title = (health.diagnostics || []).join("\n");
+    } else {
+      healthSummary.textContent = "尚未执行实际连接检测";
+    }
     const actions = document.createElement("div");
     actions.className = "extension-item-actions";
     actions.append(
+      createExtensionButton("检测", "check-mcp", server.name),
       createExtensionButton("编辑", "edit-mcp", server.name),
       createExtensionButton(server.enabled ? "停用" : "启用", "toggle-mcp", server.name),
       createExtensionButton("删除", "delete-mcp", server.name, "danger"),
@@ -1026,21 +1430,76 @@ function renderExtensionMcp(servers) {
       update.dataset.marketId = market.id;
       actions.insertBefore(update, actions.lastElementChild);
     }
-    card.append(header, description, tags, actions);
+    card.append(header, description, tags, healthSummary, actions);
     list.appendChild(card);
   });
+}
+
+async function checkMcp(name, triggerButton = null) {
+  if (state.extensionRunning) return;
+  state.extensionRunning = true;
+  setButtonBusy(triggerButton, true, "检测中...");
+  setExtensionActivity(true, `正在检测 MCP: ${name}`, "将实际启动 stdio 服务或向远程端点发送 initialize 请求, 敏感字段不会进入日志.");
+  try {
+    const request = { ...extensionQuery(), name };
+    const result = invoke
+      ? await invoke("extension_check_mcp", { request })
+      : {
+          name,
+          transport: "stdio",
+          status: "healthy",
+          summary: "初始化握手成功",
+          diagnostics: ["浏览器预览模式模拟检测"],
+          latencyMs: 36,
+          protocolVersion: "2025-06-18",
+          enabled: true,
+          checkedAtUnix: Math.floor(Date.now() / 1000),
+        };
+    state.extensionMcpHealth[extensionMcpHealthKey(name)] = result;
+    renderExtensionMcp(state.extensionInventory?.mcpServers || []);
+    addLog(result.status === "healthy" ? "DONE" : "WARN", `MCP ${name}: ${result.summary}, ${result.latencyMs} ms.`);
+    showToast(result.status === "healthy" ? `${name} 连接正常.` : `${name} 检测失败.`, result.status === "healthy" ? "success" : "warning");
+  } catch (error) {
+    const message = normalizeError(error);
+    state.extensionMcpHealth[extensionMcpHealthKey(name)] = {
+      status: "failed",
+      summary: "检测失败",
+      diagnostics: [message],
+      latencyMs: 0,
+    };
+    renderExtensionMcp(state.extensionInventory?.mcpServers || []);
+    addLog("WARN", `MCP ${name} 检测失败: ${message}`);
+    showToast(`${name} 检测失败.`, "warning");
+  } finally {
+    state.extensionRunning = false;
+    setButtonBusy(triggerButton, false);
+    setExtensionActivity(false);
+  }
+}
+
+async function checkAllMcp() {
+  const servers = state.extensionInventory?.mcpServers || [];
+  if (!servers.length || state.extensionRunning) return;
+  const button = $("#checkAllMcpButton");
+  setButtonBusy(button, true, "检测中...");
+  for (const server of servers) {
+    await checkMcp(server.name);
+  }
+  setButtonBusy(button, false);
 }
 
 function renderExtensionSkills(skills) {
   const list = $("#extensionSkillList");
   list.replaceChildren();
-  if (!skills.length) {
-    setExtensionEmptyState("Skill", "当前范围没有 Skill. 点击“新建 Skill”创建 SKILL.md.");
+  const visible = skills.filter((skill) => extensionMatchesFilter(skill, "skill"));
+  if (!visible.length) {
+    setExtensionEmptyState("Skill", skills.length ? "没有符合当前搜索和筛选条件的 Skill." : "当前范围没有 Skill. 点击“新建 Skill”创建 SKILL.md.");
     return;
   }
   $("#extensionSkillState").classList.add("hidden");
-  skills.forEach((skill) => {
+  visible.forEach((skill) => {
     const market = marketStatusFor("skill", skill.id || skill.name);
+    const audit = skill.audit || {};
     const card = document.createElement("article");
     card.className = `extension-item-card${skill.enabled ? "" : " disabled"}${skill.builtIn ? " builtin" : ""}`;
     const header = document.createElement("div");
@@ -1057,19 +1516,48 @@ function renderExtensionSkills(skills) {
     title.append(heading, source);
     const status = document.createElement("span");
     status.className = "extension-state-pill";
-    status.textContent = market?.updateAvailable ? "有更新" : skill.builtIn ? "内置只读" : skill.enabled ? "已启用" : "已停用";
+    status.textContent = market?.localModified ? "本地已修改" : market?.updateAvailable ? "有更新" : skill.builtIn ? "内置只读" : skill.enabled ? "已启用" : "已停用";
     status.classList.toggle("update", Boolean(market?.updateAvailable));
-    header.append(icon, title, status);
+    status.classList.toggle("modified", Boolean(market?.localModified));
+    if (skill.builtIn) {
+      header.classList.add("no-select");
+      header.append(icon, title, status);
+    } else {
+      header.append(createExtensionSelector("skill", skill.id || skill.name), icon, title, status);
+    }
     const description = document.createElement("p");
     description.className = "extension-item-description";
     description.textContent = skill.description || "未提供 Skill 描述";
     const tags = document.createElement("div");
     tags.className = "extension-secret-tags";
-    for (const label of ["SKILL.md", skill.enabled ? "ACTIVE" : "DISABLED"]) {
+    for (const label of [
+      "SKILL.md",
+      skill.enabled ? "ACTIVE" : "DISABLED",
+      `${audit.fileCount || 0} FILES`,
+      audit.trustedSource ? "PINNED SOURCE" : "UNVERIFIED SOURCE",
+    ]) {
       const tag = document.createElement("span");
       tag.textContent = label;
       tags.appendChild(tag);
     }
+    const auditSummary = document.createElement("div");
+    const risk = audit.riskLevel || "unknown";
+    auditSummary.className = `skill-audit-summary ${risk}`;
+    const auditTitle = document.createElement("strong");
+    auditTitle.textContent = risk === "low"
+      ? "低风险"
+      : risk === "medium"
+        ? "中风险"
+        : risk === "high"
+          ? "高风险"
+          : risk === "invalid" ? "配置无效" : "尚未审计";
+    const auditText = document.createElement("span");
+    const capabilities = [audit.hasScripts && "脚本", audit.hasNetworkAccess && "网络", audit.hasShellCommands && "Shell"]
+      .filter(Boolean)
+      .join(" / ");
+    auditText.textContent = `${audit.riskScore || 0} 分${capabilities ? ` · ${capabilities}` : " · 纯文档"} · SHA256 ${(audit.sha256 || "--").slice(0, 12)}`;
+    auditSummary.title = (audit.findings || []).join("\n") || "未发现明显风险";
+    auditSummary.append(auditTitle, auditText);
     const actions = document.createElement("div");
     actions.className = "extension-item-actions";
     if (!skill.builtIn) {
@@ -1095,7 +1583,7 @@ function renderExtensionSkills(skills) {
       label.textContent = "由 Cursor 管理, 工作台不会修改";
       actions.appendChild(label);
     }
-    card.append(header, description, tags, actions);
+    card.append(header, description, tags, auditSummary, actions);
     list.appendChild(card);
   });
 }
@@ -1103,12 +1591,13 @@ function renderExtensionSkills(skills) {
 function renderExtensionPrompts(prompts) {
   const list = $("#extensionPromptList");
   list.replaceChildren();
-  if (!prompts.length) {
-    setExtensionEmptyState("Prompt", "当前范围没有提示词. 点击“新建提示词”创建第一条规则.");
+  const visible = prompts.filter((prompt) => extensionMatchesFilter(prompt, "prompt"));
+  if (!visible.length) {
+    setExtensionEmptyState("Prompt", prompts.length ? "没有符合当前搜索和筛选条件的提示词." : "当前范围没有提示词. 点击“新建提示词”创建第一条规则.");
     return;
   }
   $("#extensionPromptState").classList.add("hidden");
-  prompts.forEach((prompt) => {
+  visible.forEach((prompt) => {
     const market = marketStatusFor("prompt", prompt.id || prompt.name);
     const card = document.createElement("article");
     card.className = `extension-item-card${prompt.enabled ? "" : " disabled"}`;
@@ -1126,9 +1615,10 @@ function renderExtensionPrompts(prompts) {
     title.append(heading, source);
     const status = document.createElement("span");
     status.className = "extension-state-pill";
-    status.textContent = market?.updateAvailable ? "有更新" : prompt.enabled ? "已启用" : "已停用";
+    status.textContent = market?.localModified ? "本地已修改" : market?.updateAvailable ? "有更新" : prompt.enabled ? "已启用" : "已停用";
     status.classList.toggle("update", Boolean(market?.updateAvailable));
-    header.append(icon, title, status);
+    status.classList.toggle("modified", Boolean(market?.localModified));
+    header.append(createExtensionSelector("prompt", prompt.id || prompt.name), icon, title, status);
     const description = document.createElement("p");
     description.className = "extension-item-description";
     description.textContent = prompt.description || "未提供提示词描述";
@@ -1172,9 +1662,9 @@ function renderExtensionMarket(items) {
   $("#extensionMarketState").classList.add("hidden");
   items.forEach((entry) => {
     const card = document.createElement("article");
-    card.className = `extension-item-card market-item${entry.installed ? " installed" : ""}`;
+    card.className = `extension-item-card market-item${entry.installed ? " installed" : ""}${entry.localModified ? " locally-modified" : ""}`;
     const header = document.createElement("div");
-    header.className = "extension-item-header";
+    header.className = "extension-item-header no-select";
     const icon = document.createElement("div");
     icon.className = `extension-item-icon ${entry.kind === "skill" ? "skill" : entry.kind === "prompt" ? "prompt" : ""}`;
     icon.textContent = entry.kind === "mcp" ? "M" : entry.kind === "skill" ? "SK" : "PR";
@@ -1189,13 +1679,15 @@ function renderExtensionMarket(items) {
     status.className = "extension-state-pill";
     status.textContent = entry.status;
     status.classList.toggle("update", Boolean(entry.updateAvailable));
+    status.classList.toggle("modified", Boolean(entry.localModified));
     header.append(icon, title, status);
     const description = document.createElement("p");
     description.className = "extension-item-description";
     description.textContent = entry.description;
     const tags = document.createElement("div");
     tags.className = "extension-secret-tags";
-    for (const label of [entry.kind.toUpperCase(), entry.latestRevision ? `REV · ${entry.latestRevision.slice(0, 8)}` : "VERSION · 未获取"]) {
+    const trustLabel = entry.trust === "official" ? "官方来源" : entry.trust === "verified" ? "已验证社区" : "社区来源";
+    for (const label of [entry.kind.toUpperCase(), trustLabel, entry.license ? `LICENSE · ${entry.license}` : "LICENSE · 未声明", entry.latestRevision ? `REV · ${entry.latestRevision.slice(0, 8)}` : "VERSION · 未获取"]) {
       const tag = document.createElement("span");
       tag.textContent = label;
       tags.appendChild(tag);
@@ -1243,11 +1735,17 @@ async function loadExtensionMarket() {
 
 async function installMarketItem(id, triggerButton = null) {
   if (!id || state.extensionRunning) return;
+  const marketItem = state.extensionMarket.find((entry) => entry.id === id) || null;
+  let allowOverwriteModified = false;
+  if (marketItem?.localModified) {
+    allowOverwriteModified = window.confirm("本地内容已修改. 更新会覆盖本地改动, 但操作前会创建完整历史快照. 是否明确继续覆盖?");
+    if (!allowOverwriteModified) return;
+  }
   state.extensionRunning = true;
   setButtonBusy(triggerButton, true, "正在处理...");
   setExtensionActivity(true, "正在安装或更新扩展", "正在下载并校验来源文件, 已有配置和启停状态会被保留.");
   try {
-    const request = { ...extensionQuery(), id };
+    const request = { ...extensionQuery(), id, allowOverwriteModified };
     const result = invoke
       ? await invoke("extension_install_market_item", { request })
       : { message: "市场项目已安装或更新", inventory: browserFallbackExtensionInventory(extensionQuery()) };
@@ -1284,6 +1782,27 @@ function renderExtensionInventory(inventory) {
   renderExtensionMcp(inventory.mcpServers || []);
   renderExtensionSkills(inventory.skills || []);
   renderExtensionPrompts(inventory.prompts || []);
+  const mcpIssues = (inventory.mcpServers || []).filter((server) => {
+    const health = state.extensionMcpHealth[extensionMcpHealthKey(server.name)];
+    return server.localModified || health?.status === "failed";
+  }).length;
+  const skillIssues = (inventory.skills || []).filter((skill) => skill.localModified || ["high", "invalid"].includes(skill.audit?.riskLevel)).length;
+  const promptIssues = (inventory.prompts || []).filter((prompt) => prompt.localModified).length;
+  const issues = mcpIssues + skillIssues + promptIssues;
+  $("#extensionRiskBanner").classList.toggle("hidden", !issues);
+  $("#extensionRiskBanner").textContent = issues
+    ? `发现 ${issues} 个需要关注的扩展: MCP ${mcpIssues}, Skill ${skillIssues}, 提示词 ${promptIssues}. 可以使用“仅异常或风险”筛选查看.`
+    : "";
+  $("#extensionOverviewIssues").textContent = formatNumber(issues);
+  $("#extensionOverviewMcp").textContent = formatNumber((inventory.mcpServers || []).length);
+  $("#extensionOverviewSkills").textContent = formatNumber((inventory.skills || []).filter((skill) => !skill.builtIn).length);
+  $("#extensionOverviewState").textContent = issues ? "需要关注" : "状态正常";
+  $("#extensionOverviewState").className = `pill ${issues ? "warning" : "success"}`;
+  $("#extensionOverviewMessage").textContent = issues
+    ? `检测到 ${issues} 个连接失败、高风险或本地修改项目.`
+    : "当前扫描范围没有发现高风险或本地修改项目.";
+  extensionBadge.classList.toggle("warn", Boolean(issues));
+  updateExtensionSelectionControls();
   if (inventory.promptEditable === false) {
     $("#extensionPromptList").replaceChildren();
     setExtensionEmptyState("Prompt", inventory.promptNote);
@@ -2099,17 +2618,23 @@ $$(`.nav-item[data-section]`).forEach((button) => {
 $$(`[data-extension-target]`).forEach((button) => {
   button.addEventListener("click", () => {
     state.extensionTarget = button.dataset.extensionTarget;
+    state.extensionSelection.clear();
     state.extensionMarket = [];
+    state.extensionHistory = [];
     loadExtensionInventory();
     if (state.extensionTab === "market") loadExtensionMarket();
+    if (state.extensionTab === "history") loadExtensionHistory();
   });
 });
 $$(`[data-extension-scope]`).forEach((button) => {
   button.addEventListener("click", () => {
     state.extensionScope = button.dataset.extensionScope;
+    state.extensionSelection.clear();
     state.extensionMarket = [];
+    state.extensionHistory = [];
     loadExtensionInventory();
     if (state.extensionTab === "market") loadExtensionMarket();
+    if (state.extensionTab === "history") loadExtensionHistory();
   });
 });
 const extensionTabButtons = $$(`[data-extension-tab]`);
@@ -2118,6 +2643,7 @@ extensionTabButtons.forEach((button, index) => {
     state.extensionTab = button.dataset.extensionTab;
     updateExtensionControls();
     if (state.extensionTab === "market") loadExtensionMarket();
+    if (state.extensionTab === "history") loadExtensionHistory();
   });
   button.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -2137,14 +2663,51 @@ $$(`[data-open-extension-location]`).forEach((button) => {
 $("#refreshExtensionsButton").addEventListener("click", loadExtensionInventory);
 $("#chooseExtensionWorkspaceButton").addEventListener("click", chooseExtensionWorkspace);
 $("#addMcpButton").addEventListener("click", () => openMcpEditor());
+$("#checkAllMcpButton").addEventListener("click", checkAllMcp);
 $("#addSkillButton").addEventListener("click", () => openSkillEditor());
 $("#addPromptButton").addEventListener("click", () => openPromptEditor());
 $("#refreshMarketButton").addEventListener("click", loadExtensionMarket);
+$("#refreshExtensionHistoryButton").addEventListener("click", loadExtensionHistory);
+$("#previewExtensionCopyButton").addEventListener("click", previewExtensionCopy);
+$("#exportRedactedBundleButton").addEventListener("click", () => exportExtensionBundle(false));
+$("#exportPrivateBundleButton").addEventListener("click", () => exportExtensionBundle(true));
+$("#chooseExtensionImportButton").addEventListener("click", chooseAndPreviewExtensionImport);
+$("#applyExtensionTransferButton").addEventListener("click", applyExtensionTransfer);
+$("#extensionSearchInput").addEventListener("input", (event) => {
+  state.extensionSearch = event.target.value;
+  if (state.extensionInventory) renderExtensionInventory(state.extensionInventory);
+});
+$("#extensionStatusFilter").addEventListener("change", (event) => {
+  state.extensionStatusFilter = event.target.value;
+  if (state.extensionInventory) renderExtensionInventory(state.extensionInventory);
+});
+$("#clearExtensionSelectionButton").addEventListener("click", clearExtensionSelection);
+$("#batchEnableExtensionsButton").addEventListener("click", () => batchToggleExtensions(true));
+$("#batchDisableExtensionsButton").addEventListener("click", () => batchToggleExtensions(false));
+$("#extensions").addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-extension-select-kind]");
+  if (!checkbox) return;
+  const key = extensionSelectionKey(checkbox.dataset.extensionSelectKind, checkbox.dataset.extensionSelectName);
+  if (checkbox.checked) state.extensionSelection.add(key);
+  else state.extensionSelection.delete(key);
+  updateExtensionSelectionControls();
+});
+$("#openExtensionsOverviewButton").addEventListener("click", () => {
+  document.querySelector('.nav-item[data-section="extensions"]')?.click();
+});
+try {
+  $("#extensionQuickStartGuide").classList.toggle("hidden", localStorage.getItem(EXTENSION_GUIDE_KEY) === "dismissed");
+} catch {}
+$("#dismissExtensionGuideButton").addEventListener("click", () => {
+  $("#extensionQuickStartGuide").classList.add("hidden");
+  try { localStorage.setItem(EXTENSION_GUIDE_KEY, "dismissed"); } catch {}
+});
 $("#extensionMcpList").addEventListener("click", (event) => {
   const button = event.target.closest("[data-extension-action]");
   if (!button) return;
   if (handleCommonExtensionAction(button)) return;
   const name = button.dataset.extensionName;
+  if (button.dataset.extensionAction === "check-mcp") checkMcp(name, button);
   if (button.dataset.extensionAction === "edit-mcp") openMcpEditor(name);
   if (button.dataset.extensionAction === "toggle-mcp") toggleMcp(name);
   if (button.dataset.extensionAction === "delete-mcp") deleteMcp(name);
@@ -2172,6 +2735,10 @@ $("#extensionPromptList").addEventListener("click", (event) => {
 $("#extensionMarketList").addEventListener("click", (event) => {
   const button = event.target.closest("[data-extension-action]");
   if (button) handleCommonExtensionAction(button);
+});
+$("#extensionHistoryList").addEventListener("click", (event) => {
+  const button = event.target.closest('[data-extension-action="restore-history"]');
+  if (button) restoreExtensionHistory(button.dataset.historyId, button);
 });
 $("#mcpTransportSelect").addEventListener("change", updateMcpEditorTransport);
 $("#mcpEditorCloseButton").addEventListener("click", closeMcpEditor);
@@ -2208,6 +2775,7 @@ $("#scanButton").addEventListener("click", refreshEnvironmentAndApps);
 $("#nodeRuntimeRefreshButton").addEventListener("click", refreshEnvironmentAndApps);
 $("#refreshUsageButton").addEventListener("click", loadUsage);
 $("#checkUpdateButton").addEventListener("click", () => loadUpdateStatus({ notify: true }));
+$("#downloadUpdateButton").addEventListener("click", downloadLatestUpdate);
 $("#refreshProjectsButton").addEventListener("click", () => loadGitHubProjects({ force: true }));
 $("#githubProjectsGrid").addEventListener("click", (event) => {
   const button = event.target.closest("[data-project-url]");
@@ -2273,6 +2841,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   await refreshEnvironmentAndApps();
   await Promise.all([loadUsage(), loadUpdateStatus({ notify: true })]);
   if (browserPreviewSection) {
+    if (browserPreviewSection === "extensions" && ["mcp", "skill", "prompt", "market", "history", "transfer"].includes(requestedBrowserTab)) {
+      state.extensionTab = requestedBrowserTab;
+      updateExtensionControls();
+    }
     activateSection(browserPreviewSection);
     if (browserPreviewSection === "extensions" && requestedBrowserEditor === "mcp") {
       window.setTimeout(() => openMcpEditor("github"), 200);

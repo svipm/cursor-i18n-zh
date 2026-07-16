@@ -22,6 +22,10 @@ pub struct MarketItem {
     pub description: String,
     pub repository: String,
     #[serde(default)]
+    pub trust: String,
+    #[serde(default)]
+    pub license: String,
+    #[serde(default)]
     pub transport: String,
     #[serde(default)]
     pub command: String,
@@ -48,6 +52,7 @@ pub struct MarketItemStatus {
     pub update_available: bool,
     pub installable: bool,
     pub status: String,
+    pub local_modified: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +61,8 @@ pub struct MarketRequest {
     #[serde(flatten)]
     pub query: ExtensionQuery,
     pub id: String,
+    #[serde(default)]
+    pub allow_overwrite_modified: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -74,7 +81,7 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
         item.targets.iter().any(|target| target == &query.target)
             && !(item.kind == "prompt" && query.target == "cursor" && query.scope == "user")
     }) {
-        let (installed, installed_revision) = installed_state(&inventory, &item);
+        let (installed, installed_revision, local_modified) = installed_state(&inventory, &item);
         let latest_revision = if let Some(revision) = revisions.get(&item.repository) {
             revision.clone()
         } else {
@@ -82,11 +89,14 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
             revisions.insert(item.repository.clone(), revision.clone());
             revision
         };
-        let (update_available, status) = revision_status(
+        let (update_available, mut status) = revision_status(
             installed,
             installed_revision.as_deref(),
             latest_revision.as_deref(),
         );
+        if local_modified {
+            status = "本地已修改".to_string();
+        }
         result.push(MarketItemStatus {
             item,
             installed,
@@ -95,51 +105,56 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
             update_available,
             installable: true,
             status,
+            local_modified,
         });
     }
     let mut known = result
         .iter()
         .map(|entry| (entry.item.kind.clone(), entry.item.name.clone()))
         .collect::<BTreeSet<_>>();
-    for (kind, name, title, description, repository, installed_revision) in inventory
-        .mcp_servers
-        .iter()
-        .filter_map(|entry| {
-            entry.repository.clone().map(|repository| {
-                (
-                    "mcp".to_string(),
-                    entry.name.clone(),
-                    entry.name.clone(),
-                    format!("已安装的 {} MCP 服务", entry.transport.to_uppercase()),
-                    repository,
-                    entry.revision.clone(),
-                )
+    for (kind, name, title, description, repository, installed_revision, local_modified) in
+        inventory
+            .mcp_servers
+            .iter()
+            .filter_map(|entry| {
+                entry.repository.clone().map(|repository| {
+                    (
+                        "mcp".to_string(),
+                        entry.name.clone(),
+                        entry.name.clone(),
+                        format!("已安装的 {} MCP 服务", entry.transport.to_uppercase()),
+                        repository,
+                        entry.revision.clone(),
+                        entry.local_modified,
+                    )
+                })
             })
-        })
-        .chain(inventory.skills.iter().filter_map(|entry| {
-            entry.repository.clone().map(|repository| {
-                (
-                    "skill".to_string(),
-                    entry.id.clone(),
-                    entry.name.clone(),
-                    entry.description.clone(),
-                    repository,
-                    entry.revision.clone(),
-                )
-            })
-        }))
-        .chain(inventory.prompts.iter().filter_map(|entry| {
-            entry.repository.clone().map(|repository| {
-                (
-                    "prompt".to_string(),
-                    entry.id.clone(),
-                    entry.name.clone(),
-                    entry.description.clone(),
-                    repository,
-                    entry.revision.clone(),
-                )
-            })
-        }))
+            .chain(inventory.skills.iter().filter_map(|entry| {
+                entry.repository.clone().map(|repository| {
+                    (
+                        "skill".to_string(),
+                        entry.id.clone(),
+                        entry.name.clone(),
+                        entry.description.clone(),
+                        repository,
+                        entry.revision.clone(),
+                        entry.local_modified,
+                    )
+                })
+            }))
+            .chain(inventory.prompts.iter().filter_map(|entry| {
+                entry.repository.clone().map(|repository| {
+                    (
+                        "prompt".to_string(),
+                        entry.id.clone(),
+                        entry.name.clone(),
+                        entry.description.clone(),
+                        repository,
+                        entry.revision.clone(),
+                        entry.local_modified,
+                    )
+                })
+            }))
     {
         if !known.insert((kind.clone(), name.clone())) {
             continue;
@@ -151,11 +166,14 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
             revisions.insert(repository.clone(), revision.clone());
             revision
         };
-        let (update_available, status) = revision_status(
+        let (update_available, mut status) = revision_status(
             true,
             installed_revision.as_deref(),
             latest_revision.as_deref(),
         );
+        if local_modified {
+            status = "本地已修改".to_string();
+        }
         result.push(MarketItemStatus {
             item: MarketItem {
                 id: format!("installed:{kind}:{name}"),
@@ -165,6 +183,8 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
                 title,
                 description,
                 repository,
+                trust: "community".to_string(),
+                license: String::new(),
                 transport: String::new(),
                 command: String::new(),
                 url: String::new(),
@@ -179,6 +199,7 @@ pub fn catalog_for(query: ExtensionQuery) -> Result<Vec<MarketItemStatus>, Strin
             update_available,
             installable: false,
             status,
+            local_modified,
         });
     }
     Ok(result)
@@ -195,6 +216,14 @@ pub fn install(request: MarketRequest) -> Result<MarketInstallResult, String> {
         .any(|target| target == &request.query.target)
     {
         return Err(format!("{} 不支持当前目标", item.title));
+    }
+    let inventory = extensions::inventory(request.query.clone())?;
+    let (_, _, local_modified) = installed_state(&inventory, &item);
+    if local_modified && !request.allow_overwrite_modified {
+        return Err(format!(
+            "{} 已被本地修改. 请先查看差异并明确确认覆盖",
+            item.title
+        ));
     }
     let revision = latest_github_revision(&item.repository)?;
     let inventory = match item.kind.as_str() {
@@ -235,30 +264,57 @@ fn revision_status(
 }
 
 fn load_catalog() -> Result<Vec<MarketItem>, String> {
-    serde_json::from_str(CATALOG).map_err(|error| format!("扩展市场清单无效: {error}"))
+    let catalog = serde_json::from_str::<Vec<MarketItem>>(CATALOG)
+        .map_err(|error| format!("扩展市场清单无效: {error}"))?;
+    for item in &catalog {
+        if !is_safe_repository_url(&item.repository) {
+            return Err(format!("市场项目仓库地址不安全: {}", item.id));
+        }
+        if !matches!(item.trust.as_str(), "official" | "verified" | "community") {
+            return Err(format!("市场项目可信级别无效: {}", item.id));
+        }
+        if item.trust == "official" {
+            let owner = item
+                .repository
+                .trim_start_matches("https://github.com/")
+                .split('/')
+                .next()
+                .unwrap_or_default();
+            if !matches!(
+                owner,
+                "microsoft" | "anthropics" | "modelcontextprotocol" | "svipm"
+            ) {
+                return Err(format!("市场项目不能标记为官方来源: {}", item.id));
+            }
+        }
+    }
+    Ok(catalog)
 }
 
-fn installed_state(inventory: &ExtensionInventory, item: &MarketItem) -> (bool, Option<String>) {
+fn installed_state(
+    inventory: &ExtensionInventory,
+    item: &MarketItem,
+) -> (bool, Option<String>, bool) {
     match item.kind.as_str() {
         "mcp" => inventory
             .mcp_servers
             .iter()
             .find(|entry| entry.name == item.name)
-            .map(|entry| (true, entry.revision.clone()))
-            .unwrap_or((false, None)),
+            .map(|entry| (true, entry.revision.clone(), entry.local_modified))
+            .unwrap_or((false, None, false)),
         "skill" => inventory
             .skills
             .iter()
             .find(|entry| entry.id == item.name && !entry.built_in)
-            .map(|entry| (true, entry.revision.clone()))
-            .unwrap_or((false, None)),
+            .map(|entry| (true, entry.revision.clone(), entry.local_modified))
+            .unwrap_or((false, None, false)),
         "prompt" => inventory
             .prompts
             .iter()
             .find(|entry| entry.id == item.name)
-            .map(|entry| (true, entry.revision.clone()))
-            .unwrap_or((false, None)),
-        _ => (false, None),
+            .map(|entry| (true, entry.revision.clone(), entry.local_modified))
+            .unwrap_or((false, None, false)),
+        _ => (false, None, false),
     }
 }
 
@@ -289,46 +345,49 @@ fn install_mcp(
         .iter()
         .map(|argument| argument.replace("${workspace}", &workspace))
         .collect();
-    extensions::save_mcp(McpSaveRequest {
-        query: query.clone(),
-        original_name: Some(item.name.clone()),
-        name: item.name.clone(),
-        transport: item.transport.clone(),
-        command: item.command.clone(),
-        url: item.url.clone(),
-        args,
-        env: existing
-            .as_ref()
-            .map(|details| {
-                details
-                    .env
-                    .iter()
-                    .map(|field| SecretFieldInput {
-                        key: field.key.clone(),
-                        value: field.value.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-        headers: existing
-            .as_ref()
-            .map(|details| {
-                details
-                    .headers
-                    .iter()
-                    .map(|field| SecretFieldInput {
-                        key: field.key.clone(),
-                        value: field.value.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-        enabled: existing
-            .as_ref()
-            .map(|details| details.enabled)
-            .unwrap_or(true),
-    })?;
-    extensions::tag_mcp_origin(query.clone(), &item.name, &item.repository, revision)
+    extensions::install_market_mcp(
+        McpSaveRequest {
+            query: query.clone(),
+            original_name: Some(item.name.clone()),
+            name: item.name.clone(),
+            transport: item.transport.clone(),
+            command: item.command.clone(),
+            url: item.url.clone(),
+            args,
+            env: existing
+                .as_ref()
+                .map(|details| {
+                    details
+                        .env
+                        .iter()
+                        .map(|field| SecretFieldInput {
+                            key: field.key.clone(),
+                            value: field.value.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            headers: existing
+                .as_ref()
+                .map(|details| {
+                    details
+                        .headers
+                        .iter()
+                        .map(|field| SecretFieldInput {
+                            key: field.key.clone(),
+                            value: field.value.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            enabled: existing
+                .as_ref()
+                .map(|details| details.enabled)
+                .unwrap_or(true),
+        },
+        &item.repository,
+        revision,
+    )
 }
 
 fn install_skill(
@@ -362,7 +421,13 @@ fn install_skill(
         revision,
     )
     .into_bytes();
-    extensions::install_skill_bundle(query.clone(), &item.name, files)
+    extensions::install_market_skill_bundle(
+        query.clone(),
+        &item.name,
+        files,
+        &item.repository,
+        revision,
+    )
 }
 
 fn install_prompt(
@@ -381,7 +446,13 @@ fn install_prompt(
         &item.repository,
         revision,
     );
-    extensions::install_market_prompt(query.clone(), &item.name, content)
+    extensions::install_market_prompt_with_origin(
+        query.clone(),
+        &item.name,
+        content,
+        &item.repository,
+        revision,
+    )
 }
 
 fn attach_origin(

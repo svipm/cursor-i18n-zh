@@ -11,6 +11,9 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -39,6 +42,9 @@ jobs:
       - name: Check dictionaries
         run: npm run dict-check
 
+      - name: Scan sensitive information
+        run: npm run security-check
+
       - name: Package Windows helper
         run: npm run package
 
@@ -47,6 +53,26 @@ jobs:
 
       - name: Build desktop workbench
         run: cargo build --release --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+
+      - name: Sign Windows executable
+        if: env.WINDOWS_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $certificate = Join-Path $env:RUNNER_TEMP 'windows-signing.pfx'
+          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          try {
+            $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe |
+              Where-Object FullName -Match '\\x64\\signtool\.exe$' |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+            if (!$signtool) { throw 'signtool.exe not found' }
+            & $signtool sign /f $certificate /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 'desktop-sample/src-tauri/target/release/cursor-i18n-desktop-sample.exe'
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+            $signature = Get-AuthenticodeSignature 'desktop-sample/src-tauri/target/release/cursor-i18n-desktop-sample.exe'
+            if ($signature.Status -ne 'Valid') { throw "Windows signature verification failed: $($signature.Status)" }
+          } finally {
+            Remove-Item -LiteralPath $certificate -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Package desktop workbench
         shell: pwsh
@@ -143,8 +169,23 @@ jobs:
             exit "$status"
           fi
 
+      - name: Restore Tauri CLI cache
+        id: tauri-cli-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri
+          key: tauri-cli-2.11.4-${{ runner.os }}-${{ runner.arch }}
+
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version '^2' --locked
+        if: steps.tauri-cli-cache.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version '2.11.4' --locked
+
+      - name: Save Tauri CLI cache
+        if: steps.tauri-cli-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri
+          key: tauri-cli-2.11.4-${{ runner.os }}-${{ runner.arch }}
 
       - name: Build macOS workbench
         shell: bash
@@ -177,6 +218,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
       - name: Verify tag matches package version
         shell: pwsh
         run: |
@@ -184,6 +231,9 @@ jobs:
           if ('v' + $version -ne '${{ github.ref_name }}') {
             throw "Tag ${{ github.ref_name }} does not match package version $version"
           }
+
+      - name: Scan release-sensitive information
+        run: npm ci && npm run security-check
 
       - name: Download package artifact
         uses: actions/download-artifact@v4

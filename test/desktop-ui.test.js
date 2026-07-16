@@ -26,10 +26,35 @@ const extensions = fs.readFileSync(
   path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions.rs'),
   'utf8',
 );
+const extensionTargets = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions', 'targets.rs'),
+  'utf8',
+);
+const extensionHealth = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions', 'health.rs'),
+  'utf8',
+);
+const extensionHistory = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions', 'history.rs'),
+  'utf8',
+);
+const extensionSecurity = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions', 'security.rs'),
+  'utf8',
+);
+const extensionTransfer = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions', 'transfer.rs'),
+  'utf8',
+);
 const market = fs.readFileSync(
   path.join(root, 'desktop-sample', 'src-tauri', 'src', 'market.rs'),
   'utf8',
 );
+const release = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'release.rs'),
+  'utf8',
+);
+const securityCheck = fs.readFileSync(path.join(root, 'scripts', 'security-check.js'), 'utf8');
 const buildWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build.yml'), 'utf8');
 
 test('desktop UI exposes usage and backup history controls', () => {
@@ -125,11 +150,17 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
     'extensionSkillList',
     'extensionPromptList',
     'extensionMarketList',
+    'extensionHistoryList',
+    'extensionTransferPanel',
     'extensionActivityBanner',
     'addMcpButton',
     'addSkillButton',
     'addPromptButton',
     'refreshMarketButton',
+    'checkAllMcpButton',
+    'refreshExtensionHistoryButton',
+    'previewExtensionCopyButton',
+    'chooseExtensionImportButton',
     'mcpEditorBackdrop',
     'skillEditorBackdrop',
     'promptEditorBackdrop',
@@ -156,6 +187,16 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
     'extension_delete_prompt',
     'extension_market',
     'extension_install_market_item',
+    'extension_check_mcp',
+    'extension_history',
+    'extension_restore_history',
+    'extension_export_bundle',
+    'extension_preview_import',
+    'extension_import_bundle',
+    'extension_preview_copy',
+    'extension_copy',
+    'extension_batch_toggle',
+    'choose_extension_bundle_path',
     'choose_extension_workspace',
   ]) {
     assert.match(script, new RegExp(`invoke\\("${command}"`));
@@ -165,24 +206,51 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
   assert.match(script, /••••••/);
   assert.match(styles, /\.extension-item-card/);
   assert.match(styles, /\.extension-editor-modal/);
-  assert.match(extensions, /home\.join\("\.cursor\/mcp\.json"\)/);
-  assert.match(extensions, /home\.join\("\.claude\.json"\)/);
-  assert.match(extensions, /root\.join\("\.mcp\.json"\)/);
-  assert.match(extensions, /home\.join\("\.cursor\/skills-cursor"\)/);
-  assert.match(extensions, /home\.join\("\.cursor\/rules"\)/);
-  assert.match(extensions, /home\.join\("\.claude\/rules"\)/);
+  assert.match(extensionTargets, /home\.join\("\.cursor\/mcp\.json"\)/);
+  assert.match(extensionTargets, /home\.join\("\.claude\.json"\)/);
+  assert.match(extensionTargets, /workspace\.join\("\.mcp\.json"\)/);
+  assert.match(extensionTargets, /home\.join\("\.cursor\/skills-cursor"\)/);
+  assert.match(extensionTargets, /home\.join\("\.cursor\/rules"\)/);
+  assert.match(extensionTargets, /home\.join\("\.claude\/rules"\)/);
   assert.match(extensions, /REDACTED_VALUE/);
-  assert.match(extensions, /extension-config-backups/);
+  assert.match(extensionHealth, /"method": "initialize"/);
+  assert.match(extensionHistory, /MAX_HISTORY_RECORDS/);
+  assert.match(extensionHistory, /restore_snapshot/);
+  assert.match(extensionSecurity, /missing_markdown_references/);
+  assert.match(extensionSecurity, /has_shell_commands/);
+  assert.match(extensionTransfer, /MAX_BUNDLE_BYTES/);
+  assert.match(extensionTransfer, /set_private_permissions/);
   assert.match(extensions, /extension-registry/);
   assert.match(extensions, /install_skill_bundle/);
   assert.match(market, /MAX_TOTAL_BYTES/);
   assert.match(market, /fetch_repository_directory/);
+  assert.match(market, /official.*verified.*community/);
+  assert.match(market, /allow_overwrite_modified/);
+  assert.match(market, /install_market_mcp/);
+  assert.match(extensions, /install_market_skill_bundle/);
+  assert.match(extensions, /install_market_prompt_with_origin/);
   assert.match(cargo, /windows-sys/);
   assert.match(market, /api\.github\.com\/repos\/\{slug\}\/commits/);
   assert.match(market, /raw\.githubusercontent\.com/);
   assert.match(buildWorkflow, /runs-on: macos-14/);
   assert.match(buildWorkflow, /package-macos\.sh/);
   assert.match(desktopMain, /target_os = "macos"/);
+});
+
+test('desktop release flow downloads verified optional updates and scans publish artifacts', () => {
+  assert.match(script, /invoke\("download_latest_update"\)/);
+  assert.match(script, /invoke\("open_downloaded_update"/);
+  assert.match(desktopMain, /async fn download_latest_update\(/);
+  assert.match(release, /SHA256SUMS-macos\.txt/);
+  assert.match(release, /with_config\(\)\s*\.limit/);
+  assert.match(release, /releases\/download\//);
+  assert.match(securityCheck, /cursor-session/);
+  assert.match(securityCheck, /screenshot-email/);
+  assert.match(buildWorkflow, /Scan sensitive information/);
+  assert.match(buildWorkflow, /WINDOWS_CERTIFICATE/);
+  assert.match(buildWorkflow, /Get-AuthenticodeSignature/);
+  assert.match(buildWorkflow, /actions\/cache\/restore@v4/);
+  assert.match(buildWorkflow, /actions\/cache\/save@v4/);
 });
 
 test('desktop UI provides accessible focus, keyboard navigation and long-operation feedback', () => {
