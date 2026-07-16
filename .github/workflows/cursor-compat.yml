@@ -156,7 +156,10 @@ jobs:
           } finally {
             $process.Refresh()
             if (!$process.HasExited) {
-              & taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
+              $cleanup = Start-Process -FilePath taskkill.exe -ArgumentList @('/PID', $process.Id, '/T', '/F') -WindowStyle Hidden -Wait -PassThru
+              if ($cleanup.ExitCode -ne 0) {
+                Write-Host "Cursor installer process tree already exited during cleanup: $($cleanup.ExitCode)"
+              }
             }
             Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
             if ($null -eq $installedProduct -and (Test-Path -LiteralPath $installerLog -PathType Leaf)) {

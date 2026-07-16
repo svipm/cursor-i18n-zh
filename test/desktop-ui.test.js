@@ -376,7 +376,7 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /compatibility:\s*[\s\S]*?timeout-minutes:\s*45/);
   assert.match(cursorCompatWorkflow, /Download and install official Cursor build\s*\n\s*timeout-minutes:\s*15/);
   assert.match(cursorCompatWorkflow, /Start-Process[^\n]+-PassThru\s*$/m);
-  assert.doesNotMatch(cursorCompatWorkflow, /Start-Process[^\n]+-Wait/);
+  assert.doesNotMatch(cursorCompatWorkflow, /Start-Process -FilePath \$installer[^\n]+-Wait/);
   for (const flag of ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOICONS', '/CURRENTUSER']) {
     assert.ok(cursorCompatWorkflow.includes(`'${flag}'`));
   }
@@ -388,6 +388,7 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /candidate\.version[^\n]+release\.version/);
   assert.match(cursorCompatWorkflow, /candidate\.commit -match '\^\[0-9a-f\]\{40\}\$'/);
   assert.match(cursorCompatWorkflow, /differs from signed installer product commit/);
-  assert.match(cursorCompatWorkflow, /taskkill\.exe \/PID \$process\.Id \/T \/F/);
+  assert.match(cursorCompatWorkflow, /Start-Process -FilePath taskkill\.exe[^\n]+-Wait -PassThru/);
+  assert.match(cursorCompatWorkflow, /cleanup\.ExitCode -ne 0/);
   assert.match(cursorCompatWorkflow, /needs\.compatibility\.result != 'success'/);
 });
