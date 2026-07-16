@@ -1285,15 +1285,19 @@ fn now_unix() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SANDBOX_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn sandbox() -> PathBuf {
         std::env::temp_dir().join(format!(
-            "i18n-workbench-claude-test-{}-{}",
+            "i18n-workbench-claude-test-{}-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos()
+                .as_nanos(),
+            SANDBOX_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ))
     }
 

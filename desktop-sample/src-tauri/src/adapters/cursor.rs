@@ -809,15 +809,19 @@ fn finalize_platform_install(_app_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SANDBOX_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn sandbox() -> PathBuf {
         std::env::temp_dir().join(format!(
-            "i18n-workbench-cursor-test-{}-{}",
+            "i18n-workbench-cursor-test-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos()
+                .as_nanos(),
+            SANDBOX_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ))
     }
 
