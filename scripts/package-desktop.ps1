@@ -53,6 +53,7 @@ try {
 
   foreach ($relative in @(
     $ExeName,
+    'compat\cursor-stable.json',
     'src\cli.js',
     'dict',
     'node_modules\acorn\package.json',

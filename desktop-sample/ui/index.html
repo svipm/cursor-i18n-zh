@@ -296,9 +296,20 @@
           </section>
 
           <section id="about" class="about-section scroll-anchor">
-            <div class="section-heading about-heading">
-              <div><h2>关于汉化工作台</h2><p>项目信息, 版本更新和使用声明.</p></div>
-              <span class="about-version-badge">v0.3.7</span>
+            <div class="about-hero">
+              <div class="about-hero-glow" aria-hidden="true"></div>
+              <div class="about-hero-content">
+                <span class="about-eyebrow">OPEN SOURCE · LOCAL FIRST</span>
+                <h2>让软件汉化更安全, 也更简单</h2>
+                <p>一个面向多应用的中文本地化工作台. 坚持版本隔离备份, 可验证修改和一键恢复.</p>
+                <div class="about-hero-tags" aria-label="项目特性">
+                  <span>开源透明</span><span>本地处理</span><span>可恢复</span><span>持续适配</span>
+                </div>
+              </div>
+              <div class="about-hero-emblem" aria-hidden="true">
+                <strong>译</strong>
+                <span class="about-version-badge">v0.3.7</span>
+              </div>
             </div>
 
             <div class="about-grid">
@@ -338,6 +349,27 @@
                 </div>
               </article>
             </div>
+
+            <section class="featured-projects" aria-labelledby="featuredProjectsTitle">
+              <div class="featured-projects-heading">
+                <div>
+                  <span class="section-kicker">SVIPM · GITHUB</span>
+                  <h3 id="featuredProjectsTitle">热门开源项目</h3>
+                  <p>按公开 Star 数动态排序. 喜欢某个项目, 欢迎前往 GitHub 点亮 Star.</p>
+                </div>
+                <button id="refreshProjectsButton" class="secondary-button project-refresh-button">
+                  <span aria-hidden="true">↻</span>刷新项目
+                </button>
+              </div>
+              <div id="githubProjectsState" class="project-loading-state" role="status" aria-live="polite">
+                <span class="project-state-icon">↻</span>
+                <div><strong>正在读取公开项目</strong><p>首次打开时从 GitHub 获取最新数据.</p></div>
+              </div>
+              <div id="githubProjectsGrid" class="github-project-grid" aria-live="polite"></div>
+              <p class="project-star-note">
+                <span aria-hidden="true">★</span>Star 操作需要在 GitHub 登录后由你确认, 工作台不会读取或保存 GitHub 凭据.
+              </p>
+            </section>
 
             <article class="about-declaration-card">
               <div class="declaration-icon">

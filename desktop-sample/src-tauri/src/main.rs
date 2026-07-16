@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod adapters;
+mod github;
 mod network;
 mod release;
 mod usage;
@@ -44,12 +45,31 @@ async fn check_for_updates() -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
+async fn github_projects() -> Result<Vec<github::GitHubProject>, String> {
+    tauri::async_runtime::spawn_blocking(github::load_projects)
+        .await
+        .map_err(|error| format!("GitHub 项目读取线程异常: {error}"))?
+}
+
+#[tauri::command]
 fn open_project_page(page: String) -> Result<(), String> {
     let url = match page.as_str() {
         "repository" => release::PROJECT_REPOSITORY_URL,
         "releases" => release::PROJECT_RELEASES_URL,
         _ => return Err(format!("不支持的项目页面: {page}")),
     };
+    adapters::hidden_command("explorer.exe")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("无法打开默认浏览器: {error}"))
+}
+
+#[tauri::command]
+fn open_github_url(url: String) -> Result<(), String> {
+    if !github::is_safe_project_url(&url) {
+        return Err("仅允许打开 svipm 名下的 GitHub 仓库".to_string());
+    }
     adapters::hidden_command("explorer.exe")
         .arg(url)
         .spawn()
@@ -94,7 +114,9 @@ fn main() {
             list_backups,
             cursor_usage,
             check_for_updates,
+            github_projects,
             open_project_page,
+            open_github_url,
             restart_as_admin,
             run_app_action
         ])

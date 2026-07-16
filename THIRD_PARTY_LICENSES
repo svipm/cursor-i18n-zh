@@ -17,6 +17,20 @@ The translation memory is embedded in the desktop executable and is used only to
 JSON string values in three Claude Desktop en-US.json resource files. The project does
 not redistribute Claude Desktop, Claude.exe, app.asar, Anthropic assets, or account data.
 
+Repository community image
+--------------------------
+Source repository: https://github.com/Stack-Cairn/LiveAgent
+Source file: docs/images/linuxdo.png
+Pinned source commit: bca31978de9e23501c618f0fa4dca38d2e69f202
+Local file: assets/community/linuxdo.png
+License of the source repository: MIT
+
+The unchanged image is stored in this repository and referenced by README.md through a
+relative path for the LINUX DO community thanks section. It is not embedded in the
+Windows CLI package, desktop portable package, or compiled executable. LINUX DO names
+and marks belong to their respective owners; this acknowledgement does not imply
+endorsement.
+
 Desktop runtime direct dependencies
 -----------------------------------
 Tauri 2: https://github.com/tauri-apps/tauri (MIT OR Apache-2.0)

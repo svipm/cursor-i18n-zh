@@ -9,6 +9,7 @@ $ZipTemp = Join-Path $Dist ('cursor-i18n-zh-windows-' + [guid]::NewGuid().ToStri
 
 $include = @(
   'assets',
+  'compat',
   'dict',
   'scripts',
   'src',

@@ -46,6 +46,18 @@ test('replaces html text and html attributes only in matching contexts', () => {
   assert.equal(text, '<button title="打开浏览器">打开浏览器</button><span data-id="Open Browser"></span>');
 });
 
+test('replaces html text ending at a JavaScript literal boundary', () => {
+  const dict = new Map([
+    ['On-Demand Usage', { zh: '按需用量', ctx: ['html-text'] }],
+  ]);
+  const src = 'const template = \'<div><span>On-Demand Usage\';';
+  const { text, total } = applyToText(src, dict);
+
+  assert.equal(total, 1);
+  assert.equal(text, 'const template = \'<div><span>按需用量\';');
+  assert.doesNotThrow(() => new vm.Script(text));
+});
+
 test('replaces only complete JavaScript string literals', () => {
   const dict = new Map([
     ['Open Browser', { zh: '打开浏览器', ctx: ['lit'] }],
@@ -151,6 +163,20 @@ test('handles template literal boundaries and expressions', () => {
   assert.match(text, /nestedQuotes = `Click "Open Browser" now`/);
   assert.match(text, /interpolated = `Open Browser \$\{name\}`/);
   assert.match(text, /expression = `\$\{ready \? "打开浏览器" : '打开浏览器'\}`/);
+  assert.doesNotThrow(() => new vm.Script(text));
+});
+
+test('replaces exact static segments inside interpolated templates', () => {
+  const dict = new Map([
+    ['Included in ', { zh: '包含于 ', ctx: ['lit'] }],
+    ['Resets on ', { zh: '重置日期: ', ctx: ['lit'] }],
+    [' days)', { zh: ' 天)', ctx: ['lit'] }],
+  ]);
+  const src = 'const included=`Included in ${plan}`;const reset=`Resets on ${date} (${days} days)`;';
+  const { text, total } = applyToText(src, dict);
+
+  assert.equal(total, 3);
+  assert.equal(text, 'const included=`包含于 ${plan}`;const reset=`重置日期: ${date} (${days} 天)`;');
   assert.doesNotThrow(() => new vm.Script(text));
 });
 

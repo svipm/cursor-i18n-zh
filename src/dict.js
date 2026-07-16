@@ -5,8 +5,8 @@ const path = require('path');
 
 // 译文中禁止出现的字符: 保证替换后不破坏 JS 字符串/模板 HTML 结构.
 const FORBIDDEN_ZH = /[<>"'`\\]|\$\{/;
-// 原文中禁止的字符: 这些形态在压缩代码里以转义出现, 精确匹配不可靠, 直接拒绝.
-const FORBIDDEN_EN = /["`\\]|\$\{/;
+// 原文中的模板边界和反斜杠仍不适合跨上下文匹配. 双引号由 tokenizer 解码后可精确匹配.
+const FORBIDDEN_EN = /[`\\]|\$\{/;
 const VALID_CTX = new Set(['lit', 'prop', 'html-text', 'html-attr']);
 
 // 加载 dict/ 目录:
@@ -53,7 +53,7 @@ function loadDicts(dictDir, options = {}) {
         warnings.push(`${f}: "${en}" 译文无效, 跳过`); continue;
       }
       if (FORBIDDEN_EN.test(en)) {
-        warnings.push(`${f}: "${en}" 原文含不支持字符 (" \` \\ 或 \${), 跳过`); continue;
+        warnings.push(`${f}: "${en}" 原文含不支持字符 (\` \\ 或 \${), 跳过`); continue;
       }
       const zh = convert(item.zh);
       if (FORBIDDEN_ZH.test(zh)) {

@@ -46,6 +46,18 @@ test('applies converter to code and nls dictionaries', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('accepts an English dictionary key containing double quotes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-dict-'));
+  fs.writeFileSync(path.join(dir, '00.json'), JSON.stringify({
+    'Reset "Don\u2019t Ask Again" Dialogs': { zh: '重置不再询问的对话框', ctx: ['prop'] },
+  }));
+
+  const dicts = loadDicts(dir);
+  assert.equal(dicts.warnings.length, 0);
+  assert.equal(dicts.code.get('Reset "Don\u2019t Ask Again" Dialogs').zh, '重置不再询问的对话框');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('rejects a dictionary whose root is not an object', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-dict-'));
   try {

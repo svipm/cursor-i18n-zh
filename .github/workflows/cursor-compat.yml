@@ -1,0 +1,254 @@
+name: Cursor stable compatibility
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 即使版本未变化也重新执行完整兼容性构建
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cursor-stable-compatibility
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: windows-latest
+    outputs:
+      changed: ${{ steps.release.outputs.changed }}
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+      download_url: ${{ steps.release.outputs.download_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Cursor stable release
+        id: release
+        shell: pwsh
+        env:
+          FORCE_COMPAT_CHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.force == true }}
+        run: |
+          $force = $env:FORCE_COMPAT_CHECK -eq 'true'
+          ./scripts/get-cursor-release.ps1 -Force:$force
+
+      - name: Write detection summary
+        shell: pwsh
+        run: |
+          @"
+          ## Cursor stable detection
+
+          - Version: `${{ steps.release.outputs.version }}`
+          - Commit: `${{ steps.release.outputs.commit }}`
+          - Build required: `${{ steps.release.outputs.changed }}`
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+  compatibility:
+    if: needs.detect.outputs.changed == 'true'
+    needs: detect
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-sample/src-tauri -> target
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Refresh and verify release metadata
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.detect.outputs.version }}
+          EXPECTED_COMMIT: ${{ needs.detect.outputs.commit }}
+        run: |
+          ./scripts/get-cursor-release.ps1 -Force
+          $release = Get-Content -LiteralPath 'build/cursor-release.json' -Raw | ConvertFrom-Json
+          if ($release.version -ne $env:EXPECTED_VERSION -or $release.commit -ne $env:EXPECTED_COMMIT) {
+            throw 'Cursor stable changed while this workflow was starting. Run the workflow again.'
+          }
+
+      - name: Download and install official Cursor build
+        shell: pwsh
+        run: |
+          $release = Get-Content -LiteralPath 'build/cursor-release.json' -Raw | ConvertFrom-Json
+          $installer = Join-Path $env:RUNNER_TEMP "CursorUserSetup-$($release.version).exe"
+          Invoke-WebRequest -Uri $release.downloadUrl -OutFile $installer
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid') {
+            throw "Cursor installer signature is not valid: $($signature.Status)"
+          }
+          $subject = [string]$signature.SignerCertificate.Subject
+          if ($subject -notmatch 'Anysphere|Cursor') {
+            throw "Unexpected Cursor installer signer: $subject"
+          }
+
+          $process = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            throw "Cursor installer failed with exit code $($process.ExitCode)"
+          }
+          Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
+
+          $appDir = Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app'
+          for ($attempt = 0; $attempt -lt 60 -and !(Test-Path -LiteralPath (Join-Path $appDir 'product.json')); $attempt++) {
+            Start-Sleep -Seconds 2
+          }
+          if (!(Test-Path -LiteralPath (Join-Path $appDir 'product.json'))) {
+            throw "Cursor resources/app was not installed at $appDir"
+          }
+
+          $product = Get-Content -LiteralPath (Join-Path $appDir 'product.json') -Raw | ConvertFrom-Json
+          if ([string]$product.version -ne [string]$release.version -or [string]$product.commit -ne [string]$release.commit) {
+            throw "Installed Cursor identity $($product.version)/$($product.commit) does not match official metadata $($release.version)/$($release.commit)"
+          }
+          "CURSOR_APP_DIR=$appDir" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "CURSOR_INSTALLER_SIGNER=$subject" | Add-Content -LiteralPath $env:GITHUB_ENV
+
+      - name: Run project tests
+        run: npm test
+
+      - name: Check Simplified Chinese compatibility
+        run: node scripts/cursor-compat.js --locale zh-cn --baseline compat/cursor-stable.json --output build/cursor-compat-zh-cn.json
+
+      - name: Check Traditional Chinese compatibility
+        run: node scripts/cursor-compat.js --locale zh-tw --baseline compat/cursor-stable.json --output build/cursor-compat-zh-tw.json
+
+      - name: Scan upstream UI text candidates
+        run: node src/cli.js scan
+
+      - name: Package Windows helper
+        run: npm run package
+
+      - name: Test desktop workbench
+        run: cargo test --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+
+      - name: Build desktop workbench
+        run: cargo build --release --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+
+      - name: Package desktop workbench
+        shell: pwsh
+        run: ./scripts/package-desktop.ps1
+
+      - name: Upload compatibility reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursor-${{ needs.detect.outputs.version }}-compatibility-reports
+          path: |
+            build/*.json
+            build/*.tsv
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload validated Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: localization-workbench-cursor-${{ needs.detect.outputs.version }}
+          path: |
+            dist/cursor-i18n-zh-windows.zip
+            dist/localization-workbench-v*.exe
+            dist/localization-workbench-v*-windows.zip
+            dist/SHA256SUMS.txt
+          retention-days: 30
+
+      - name: Record validated Cursor stable version
+        if: github.ref_name == github.event.repository.default_branch
+        shell: pwsh
+        env:
+          CURSOR_VERSION: ${{ needs.detect.outputs.version }}
+        run: |
+          node scripts/update-cursor-baseline.js --release build/cursor-release.json --report build/cursor-compat-zh-cn.json
+          if (!(git diff --quiet -- compat/cursor-stable.json)) {
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add compat/cursor-stable.json
+            git commit -m "Validate Cursor $env:CURSOR_VERSION"
+            git pull --rebase origin $env:GITHUB_REF_NAME
+            git push origin "HEAD:$env:GITHUB_REF_NAME"
+          }
+
+      - name: Write compatibility summary
+        shell: pwsh
+        run: |
+          $report = Get-Content -LiteralPath 'build/cursor-compat-zh-cn.json' -Raw | ConvertFrom-Json
+          $metrics = $report.evaluation.metrics
+          @"
+          ## Cursor ${{ needs.detect.outputs.version }} compatibility passed
+
+          - Commit: `${{ needs.detect.outputs.commit }}`
+          - Installer signer: `$env:CURSOR_INSTALLER_SIGNER`
+          - Code replacements: `$($metrics.codeReplacements)`
+          - Workbench bundles: `$($metrics.workbenchBundles)`
+          - Account usage bundles: `$($metrics.accountUsageBundles)`
+          - Cursor NLS replacements: `$($metrics.cursorNlsReplacements)`
+          - Result: Windows EXE and portable packages uploaded as workflow artifacts
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+  report-failure:
+    if: always() && needs.detect.outputs.changed == 'true' && needs.compatibility.result == 'failure'
+    needs:
+      - detect
+      - compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create or update compatibility issue
+        uses: actions/github-script@v7
+        env:
+          CURSOR_VERSION: ${{ needs.detect.outputs.version }}
+          CURSOR_COMMIT: ${{ needs.detect.outputs.commit }}
+        with:
+          script: |
+            const title = `Cursor ${process.env.CURSOR_VERSION} 自动兼容构建失败`;
+            const body = [
+              `Cursor stable ${process.env.CURSOR_VERSION} (${process.env.CURSOR_COMMIT}) 未通过自动兼容构建.`,
+              '',
+              `运行记录: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              '请检查官方安装结构, 兼容性报告, 词典命中率和账号用量入口锚点.',
+            ].join('\n');
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.data.find(issue => !issue.pull_request && issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }

@@ -14,6 +14,14 @@ const network = fs.readFileSync(
   path.join(root, 'desktop-sample', 'src-tauri', 'src', 'network.rs'),
   'utf8',
 );
+const github = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'github.rs'),
+  'utf8',
+);
+const desktopMain = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'main.rs'),
+  'utf8',
+);
 
 test('desktop UI exposes usage and backup history controls', () => {
   for (const id of [
@@ -61,6 +69,9 @@ test('desktop UI exposes About, GitHub and optional update checks', () => {
     'checkUpdateButton',
     'viewUpdateButton',
     'githubAvatar',
+    'githubProjectsState',
+    'githubProjectsGrid',
+    'refreshProjectsButton',
     'reviewConsentButton',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
@@ -69,10 +80,32 @@ test('desktop UI exposes About, GitHub and optional update checks', () => {
   assert.match(html, /github\.com\/svipm\.png\?size=160/);
   assert.match(html, /不自动下载、不静默安装、不强制更新/);
   assert.match(script, /invoke\("check_for_updates"\)/);
+  assert.match(script, /invoke\("github_projects"\)/);
+  assert.match(script, /invoke\("open_github_url"/);
   assert.match(script, /invoke\("open_project_page"/);
+  assert.match(script, /function renderGitHubProjects\(/);
+  assert.match(script, /dataset\.projectUrl = project\.htmlUrl/);
+  assert.match(script, /前往 Star/);
+  assert.match(script, /登录后点击右上角 Star/);
   assert.match(script, /content\.classList\.toggle\("about-mode", aboutMode\)/);
   assert.match(styles, /\.content:not\(\.about-mode\) > #about/);
   assert.match(styles, /\.content\.about-mode > :not\(#about\)/);
+  assert.match(styles, /\.github-project-grid/);
+  assert.match(styles, /\.github-project-card/);
+  assert.match(styles, /\.project-star-button/);
+});
+
+test('desktop GitHub project feed is public, sorted and URL restricted', () => {
+  assert.match(github, /api\.github\.com\/users\/svipm\/repos/);
+  assert.match(github, /right\s*\.stars\s*\.cmp\(&left\.stars\)/);
+  assert.match(github, /!repository\.fork/);
+  assert.match(github, /!repository\.archived/);
+  assert.match(github, /projects\.truncate\(MAX_PROJECTS\)/);
+  assert.match(github, /https:\/\/github\.com\/svipm\//);
+  assert.match(desktopMain, /async fn github_projects\(/);
+  assert.match(desktopMain, /fn open_github_url\(/);
+  assert.match(desktopMain, /github::is_safe_project_url\(&url\)/);
+  assert.doesNotMatch(`${html}\n${script}\n${github}`, /github[_-]?token/i);
 });
 
 test('desktop UI gates first launch before local or network initialization', () => {
@@ -89,7 +122,8 @@ test('desktop UI gates first launch before local or network initialization', () 
   assert.match(html, /软件声明/);
   assert.match(html, /隐私说明/);
   assert.match(script, /i18nWorkbench\.firstRunConsent\.v2/);
-  assert.match(script, /await waitForFirstRunConsent\(\);\s*await refreshEnvironmentAndApps\(\);/);
+  assert.match(script, /if \(!browserPreviewSection\) await waitForFirstRunConsent\(\);\s*await refreshEnvironmentAndApps\(\);/);
+  assert.match(script, /!invoke[\s\S]*get\("preview"\) === "about"/);
   assert.ok(
     script.indexOf('await waitForFirstRunConsent();')
       < script.indexOf('await Promise.all([loadUsage(), loadUpdateStatus({ notify: true })]);'),

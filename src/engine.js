@@ -35,7 +35,7 @@ function buildHtmlMatchers(buckets) {
       ? new RegExp(`((?:${attrs})=")(${attrAlternatives})"`, 'g')
       : null,
     text: textAlternatives
-      ? new RegExp(`(?<!=)>(${textAlternatives})<`, 'g')
+      ? new RegExp(`(?<!=)>(${textAlternatives})(<|$)`, 'g')
       : null,
   };
 }
@@ -55,12 +55,12 @@ function htmlReplacements(raw, buckets, matchers, counts) {
   }
 
   if (matchers.text && text.includes('>')) {
-    text = text.replace(matchers.text, (match, en) => {
+    text = text.replace(matchers.text, (match, en, suffix) => {
       const zh = buckets['html-text'].get(en);
       if (zh === undefined) return match;
       counts.set(en, (counts.get(en) || 0) + 1);
       total++;
-      return `>${zh}<`;
+      return `>${zh}${suffix}`;
     });
   }
   return { text, total };
@@ -133,19 +133,20 @@ function applyToText(text, entries) {
       let replacement = originalRaw;
       let replacedLiteral = false;
 
-      if (token.type.label === 'string'
-        || (text[token.start - 1] === '`' && text[token.end] === '`')) {
-        const literalMap = previous.length >= 2
-          && previous[previous.length - 1].type.label === ':'
-          && isPropName(previous[previous.length - 2], props)
-          ? buckets.prop
-          : previous.length >= 3
-            && previous[previous.length - 1].type.label === '='
-            && previous[previous.length - 2].type.label === 'name'
+      if (token.type.label === 'string' || token.type.label === 'template') {
+        const literalMap = token.type.label === 'template'
+          ? buckets.lit
+          : previous.length >= 2
+            && previous[previous.length - 1].type.label === ':'
             && isPropName(previous[previous.length - 2], props)
-            && previous[previous.length - 3].type.label === '.'
-              ? buckets.prop
-              : buckets.lit;
+            ? buckets.prop
+            : previous.length >= 3
+              && previous[previous.length - 1].type.label === '='
+              && previous[previous.length - 2].type.label === 'name'
+              && isPropName(previous[previous.length - 2], props)
+              && previous[previous.length - 3].type.label === '.'
+                ? buckets.prop
+                : buckets.lit;
         const en = String(token.value);
         const zh = literalMap.get(en);
         if (zh !== undefined) {

@@ -9,6 +9,14 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const cli = path.join(root, 'src', 'cli.js');
+const { classifyTargetState } = require('../src/cli');
+
+test('classifies patched targets against the original backup before live product checksums', () => {
+  assert.equal(classifyTargetState('patched', 'original', 'patched'), '已修改');
+  assert.equal(classifyTargetState('original', 'original', 'patched'), '原版');
+  assert.equal(classifyTargetState('official', null, 'official'), '原版');
+  assert.equal(classifyTargetState('unknown', null, null), '(无原始校验基准)');
+});
 
 test('prints help with zero exit status', () => {
   const result = cp.spawnSync(process.execPath, [cli, '--help'], {

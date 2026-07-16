@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Output;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const ADAPTER_VERSION: &str = "0.1.0";
@@ -837,30 +838,68 @@ fn ensure_write_access(path: &Path) -> Result<(), String> {
         ));
     }
 
+    let command_path = windows_tool_path(path);
     let takeown = hidden_command("takeown.exe")
         .arg("/F")
-        .arg(path)
+        .arg(&command_path)
         .arg("/A")
-        .status()
+        .output()
         .map_err(|error| format!("takeown 启动失败: {error}"))?;
-    if !takeown.success() {
-        return Err(format!("takeown 失败: {}", path.display()));
+    if !takeown.status.success() {
+        return Err(format!(
+            "takeown 失败: {}. {}",
+            path.display(),
+            command_failure_detail(&takeown)
+        ));
     }
     let icacls = hidden_command("icacls.exe")
-        .arg(path)
+        .arg(&command_path)
         .args(["/grant", "*S-1-5-32-544:(F)", "/C"])
-        .status()
+        .output()
         .map_err(|error| format!("icacls 启动失败: {error}"))?;
-    if !icacls.success() {
-        return Err(format!("icacls 授权失败: {}", path.display()));
+    if !icacls.status.success() {
+        return Err(format!(
+            "icacls 授权失败: {}. {}",
+            path.display(),
+            command_failure_detail(&icacls)
+        ));
     }
-    let _ = hidden_command("attrib.exe").arg("-R").arg(path).status();
+    let _ = hidden_command("attrib.exe")
+        .arg("-R")
+        .arg(&command_path)
+        .status();
     fs::OpenOptions::new()
         .read(true)
         .write(true)
         .open(path)
         .map(|_| ())
         .map_err(|error| format!("权限处理后仍无法写入 {}: {error}", path.display()))
+}
+
+fn windows_tool_path(path: &Path) -> String {
+    path.as_os_str().to_string_lossy().replace('/', "\\")
+}
+
+fn command_failure_detail(output: &Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let text = [stderr.trim(), stdout.trim()]
+        .into_iter()
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        format!("exit {:?}", output.status.code())
+    } else {
+        let mut chars = normalized.chars();
+        let preview = chars.by_ref().take(420).collect::<String>();
+        if chars.next().is_some() {
+            format!("exit {:?}: {preview}...", output.status.code())
+        } else {
+            format!("exit {:?}: {preview}", output.status.code())
+        }
+    }
 }
 
 fn stop_claude() -> Result<(), String> {
@@ -1146,6 +1185,29 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, r#"{"title":"Copy","nested":["Edit",42]}"#).unwrap();
         }
+    }
+
+    #[test]
+    fn normalizes_nested_resource_paths_for_windows_tools() {
+        let resources =
+            PathBuf::from(r"C:\Program Files\WindowsApps\Claude_1.0.0.0_x64__test\app\resources");
+        for relative in &RESOURCE_FILES[1..] {
+            let normalized = windows_tool_path(&resources.join(relative));
+            assert!(!normalized.contains('/'));
+            assert!(normalized.ends_with(&relative.replace('/', "\\")));
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn preserves_external_command_failure_details() {
+        let output = hidden_command("cmd.exe")
+            .args(["/D", "/C", "echo takeown diagnostic 1>&2 & exit /b 7"])
+            .output()
+            .unwrap();
+        let detail = command_failure_detail(&output);
+        assert!(detail.contains("Some(7)"));
+        assert!(detail.contains("takeown diagnostic"));
     }
 
     #[test]

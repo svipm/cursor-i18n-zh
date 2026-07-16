@@ -22,6 +22,7 @@
     "scan": "node src/cli.js scan",
     "lang": "node src/cli.js lang",
     "check": "node src/cli.js check",
+    "compat-check": "node scripts/cursor-compat.js",
     "dict-check": "node src/cli.js dict-check",
     "helper": "node scripts/helper.js",
     "ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gui.ps1",

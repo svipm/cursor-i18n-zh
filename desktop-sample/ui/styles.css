@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  font-family: "Microsoft YaHei UI", "Segoe UI Variable Text", "Segoe UI", sans-serif;
   background: #0b0d13;
   color: #f6f7fb;
   font-synthesis: none;
@@ -18,7 +18,7 @@
 * { box-sizing: border-box; }
 
 html, body { margin: 0; min-width: 920px; min-height: 620px; overflow: hidden; }
-body { background: radial-gradient(circle at 80% -10%, rgba(124, 79, 255, 0.14), transparent 34%), #0b0d13; }
+body { background: radial-gradient(circle at 80% -10%, rgba(124, 79, 255, 0.14), transparent 34%), #0b0d13; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 button { font: inherit; color: inherit; }
 
 .app-shell { height: 100vh; display: grid; grid-template-columns: 228px 1fr; }
@@ -223,21 +223,33 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
 .empty-row { padding: 18px 12px; color: #626979; font-size: 9px; text-align: center; }
 .empty-row.error { color: #c78184; }
 
-.about-section { margin-top: 0; }
-.about-heading { align-items: center; margin-top: 0; }
-.about-version-badge { padding: 6px 10px; border: 1px solid rgba(139,92,246,.18); border-radius: 15px; background: rgba(139,92,246,.07); color: #aa91f2; font-size: 9px; font-weight: 700; }
-.about-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
-.about-project-card, .about-update-card, .about-declaration-card { border: 1px solid var(--border); border-radius: 15px; background: linear-gradient(145deg, rgba(25,29,40,.92), rgba(16,19,28,.95)); }
-.about-project-card, .about-update-card { min-height: 250px; padding: 18px; }
+.about-section { position: relative; margin-top: 0; padding-bottom: 26px; }
+.about-hero { position: relative; min-height: 178px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 30px; margin-bottom: 16px; padding: 29px 34px; overflow: hidden; border: 1px solid rgba(139,92,246,.22); border-radius: 20px; background: radial-gradient(circle at 80% 15%, rgba(85,167,255,.13), transparent 34%), linear-gradient(135deg, rgba(80,51,143,.25), rgba(19,23,34,.97) 52%, rgba(12,16,25,.98)); box-shadow: 0 24px 70px rgba(5,7,12,.28), inset 0 1px rgba(255,255,255,.035); }
+.about-hero::before { content: ""; position: absolute; inset: 0; opacity: .2; background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(90deg, #000, transparent 78%); }
+.about-hero-glow { position: absolute; right: 55px; top: -100px; width: 250px; height: 250px; border-radius: 50%; background: rgba(139,92,246,.2); filter: blur(62px); pointer-events: none; }
+.about-hero-content { position: relative; z-index: 1; max-width: 650px; }
+.about-eyebrow, .section-kicker { display: block; color: #9e83eb; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; }
+.about-hero h2 { margin: 9px 0 0; color: #f0edf8; font-size: 26px; line-height: 1.3; letter-spacing: -.35px; }
+.about-hero p { max-width: 610px; margin: 11px 0 0; color: #929aac; font-size: 12px; line-height: 1.75; }
+.about-hero-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 17px; }
+.about-hero-tags span { padding: 6px 10px; border: 1px solid rgba(255,255,255,.075); border-radius: 999px; background: rgba(255,255,255,.035); color: #a4aab6; font-size: 10px; }
+.about-hero-emblem { position: relative; z-index: 1; width: 112px; height: 112px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.11); border-radius: 31px; background: linear-gradient(145deg, rgba(155,108,255,.22), rgba(65,42,117,.12)); box-shadow: 0 24px 48px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.09); transform: rotate(3deg); }
+.about-hero-emblem strong { color: #dfd3ff; font-size: 44px; line-height: 1; text-shadow: 0 8px 28px rgba(139,92,246,.48); }
+.about-version-badge { position: absolute; right: -5px; bottom: 4px; padding: 6px 10px; border: 1px solid rgba(139,92,246,.27); border-radius: 15px; background: #1b1727; color: #bba6f7; font-size: 10px; font-weight: 750; box-shadow: 0 8px 20px rgba(0,0,0,.3); transform: rotate(-3deg); }
+.about-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(310px, .8fr); gap: 15px; }
+.about-project-card, .about-update-card, .about-declaration-card, .featured-projects { border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(145deg, rgba(25,29,40,.94), rgba(14,18,27,.97)); box-shadow: inset 0 1px rgba(255,255,255,.025); }
+.about-project-card, .about-update-card { min-height: 270px; padding: 21px; transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
+.about-project-card:hover, .about-update-card:hover { transform: translateY(-2px); box-shadow: 0 17px 42px rgba(3,5,10,.2), inset 0 1px rgba(255,255,255,.035); }
+.about-project-card:hover { border-color: rgba(139,92,246,.22); }
 .about-project-header { display: flex; align-items: center; gap: 12px; }
 .about-avatar-shell { position: relative; width: 48px; height: 48px; flex: 0 0 48px; }
 .about-brand-mark { flex: 0 0 42px; width: 42px; height: 42px; border-radius: 11px; font-size: 17px; }
 .about-avatar-shell .about-brand-mark { width: 48px; height: 48px; border-radius: 14px; }
 .about-avatar { position: absolute; inset: 0; width: 48px; height: 48px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: #171b25; object-fit: cover; box-shadow: 0 10px 28px rgba(0,0,0,.28); }
-.about-project-header h3, .about-update-heading h3, .about-declaration-card h3 { margin: 0; font-size: 14px; }
-.about-project-header p, .about-update-heading p { margin: 4px 0 0; color: #676e7e; font-size: 9px; }
-.about-description { min-height: 48px; margin: 17px 0 12px; color: #7f8696; font-size: 10px; line-height: 1.65; }
-.about-repository { display: block; overflow: hidden; padding: 9px 10px; border-radius: 8px; background: rgba(0,0,0,.2); color: #747b8c; font-family: Consolas, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.about-project-header h3, .about-update-heading h3, .about-declaration-card h3 { margin: 0; font-size: 16px; }
+.about-project-header p, .about-update-heading p { margin: 5px 0 0; color: #7a8293; font-size: 11px; }
+.about-description { min-height: 52px; margin: 18px 0 13px; color: #8d95a6; font-size: 12px; line-height: 1.7; }
+.about-repository { display: block; overflow: hidden; padding: 10px 11px; border-radius: 8px; background: rgba(0,0,0,.2); color: #838b9c; font-family: Consolas, "Microsoft YaHei UI", monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .about-actions { display: flex; align-items: center; gap: 9px; margin-top: 15px; }
 .github-button { display: inline-flex; align-items: center; gap: 8px; }
 .github-button svg { width: 15px; height: 15px; fill: currentColor; }
@@ -251,19 +263,64 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
 .about-update-card.available .update-icon { background: rgba(139,92,246,.12); color: #b49bf7; }
 .about-update-card.current .update-icon { background: rgba(55,211,154,.1); color: #66d7ae; }
 .update-version-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 17px; }
-.update-version-facts span { padding: 10px 11px; border: 1px solid rgba(255,255,255,.05); border-radius: 9px; background: rgba(255,255,255,.018); color: #676e7e; font-size: 8px; }
-.update-version-facts strong { display: block; margin-top: 4px; color: #b5bac7; font-size: 11px; }
-.update-message { min-height: 32px; margin: 13px 0 0; color: #777f90; font-size: 9px; line-height: 1.55; }
+.update-version-facts span { padding: 11px 12px; border: 1px solid rgba(255,255,255,.05); border-radius: 9px; background: rgba(255,255,255,.018); color: #7b8394; font-size: 10px; }
+.update-version-facts strong { display: block; margin-top: 5px; color: #c1c5cf; font-size: 13px; }
+.update-message { min-height: 36px; margin: 14px 0 0; color: #8991a2; font-size: 11px; line-height: 1.65; }
 .about-update-card.available .update-message { color: #9b8bc4; }
 .about-update-card.current .update-message { color: #71988a; }
 .about-update-card.failed .update-message { color: #9b8162; }
 .about-actions .hidden { display: none; }
+.featured-projects { position: relative; margin-top: 15px; padding: 21px; overflow: hidden; }
+.featured-projects::before { content: ""; position: absolute; right: -80px; top: -110px; width: 260px; height: 260px; border-radius: 50%; background: rgba(85,167,255,.055); filter: blur(25px); pointer-events: none; }
+.featured-projects-heading { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.featured-projects-heading h3 { margin: 7px 0 0; color: #d8dbe4; font-size: 18px; }
+.featured-projects-heading p { margin: 7px 0 0; color: #81899a; font-size: 11px; line-height: 1.6; }
+.project-refresh-button { flex: 0 0 auto; }
+.project-loading-state { position: relative; z-index: 1; min-height: 92px; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 18px; border: 1px dashed rgba(139,92,246,.15); border-radius: 12px; background: rgba(139,92,246,.025); }
+.project-loading-state.hidden { display: none; }
+.project-loading-state .project-state-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: rgba(139,92,246,.09); color: #a58bed; font-size: 15px; }
+.project-loading-state.loading .project-state-icon { animation: rotate 850ms linear infinite; }
+.project-loading-state strong { display: block; color: #b9bec9; font-size: 12px; }
+.project-loading-state p { margin: 5px 0 0; color: #747c8c; font-size: 10px; }
+.project-loading-state.failed { border-color: rgba(244,184,96,.16); background: rgba(244,184,96,.035); }
+.project-loading-state.failed .project-state-icon { background: rgba(244,184,96,.09); color: #e0ad62; }
+.github-project-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 13px; margin-top: 18px; }
+.github-project-grid:has(> .github-project-card:only-child) { grid-template-columns: minmax(290px, 410px); justify-content: center; }
+.github-project-card { min-width: 0; display: flex; flex-direction: column; padding: 19px; overflow: hidden; border: 1px solid rgba(255,255,255,.065); border-radius: 14px; background: linear-gradient(150deg, rgba(31,36,49,.93), rgba(16,20,29,.96)); box-shadow: 0 10px 30px rgba(4,6,10,.14); animation: projectCardIn 360ms both; animation-delay: var(--project-delay); transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.github-project-card:hover { transform: translateY(-4px); border-color: rgba(139,92,246,.27); box-shadow: 0 20px 42px rgba(4,6,12,.28), 0 0 0 1px rgba(139,92,246,.035); }
+.github-project-card-header { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.project-repository-mark { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(139,92,246,.16); border-radius: 11px; background: linear-gradient(145deg, rgba(139,92,246,.16), rgba(85,167,255,.07)); color: #baa5f6; font-size: 15px; font-weight: 800; }
+.project-identity { min-width: 0; }
+.project-identity span { display: block; color: #70798a; font-size: 9px; font-weight: 700; letter-spacing: .45px; text-transform: uppercase; }
+.project-identity h4 { margin: 5px 0 0; overflow: hidden; color: #dce0e8; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.project-star-badge { padding: 6px 8px; border: 1px solid rgba(245,190,80,.13); border-radius: 999px; background: rgba(245,190,80,.055); color: #e7bd65; font-size: 10px; font-weight: 750; }
+.github-project-description { min-height: 58px; margin: 16px 0 0; display: -webkit-box; overflow: hidden; color: #8d95a6; font-size: 11px; line-height: 1.75; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.project-topics { min-height: 23px; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; overflow: hidden; }
+.project-topics span { max-width: 100%; padding: 5px 8px; overflow: hidden; border: 1px solid rgba(85,167,255,.1); border-radius: 999px; background: rgba(85,167,255,.04); color: #84a0bd; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.project-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.045); color: #798293; font-size: 9px; }
+.project-language { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.project-language i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,.025); }
+.project-language strong { overflow: hidden; color: #969eae; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-updated { flex: 0 0 auto; color: #5d6574; }
+.project-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+.project-stats > span { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 5px; padding: 8px 9px; border-radius: 9px; background: rgba(255,255,255,.022); }
+.project-stats b { color: #c2a05a; font-size: 10px; }
+.project-stats strong { color: #bcc1cc; font-size: 12px; }
+.project-stats small { color: #6e7787; font-size: 9px; }
+.project-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: auto; padding-top: 14px; }
+.project-card-actions button { min-width: 0; height: 38px; padding: 0 10px; font-size: 11px; }
+.project-star-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: linear-gradient(135deg, #9270f3, #6d49d5); }
+.project-star-button span { color: #f6d676; }
+.project-star-note { position: relative; z-index: 1; margin: 14px 2px 0; color: #717a8b; font-size: 10px; line-height: 1.6; }
+.project-star-note span { margin-right: 5px; color: #caa653; }
 .about-declaration-card { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 14px; margin-top: 15px; padding: 18px; }
 .declaration-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: rgba(55,211,154,.07); color: #65cda9; }
 .declaration-icon svg { width: 23px; height: 23px; fill: currentColor; }
-.about-declaration-card ul { display: grid; gap: 7px; margin: 11px 0 0; padding: 0; list-style: none; color: #757d8e; font-size: 9px; line-height: 1.55; }
+.about-declaration-card ul { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; color: #8790a1; font-size: 11px; line-height: 1.65; }
 .about-declaration-card li { position: relative; padding-left: 13px; }
 .about-declaration-card li::before { content: ""; position: absolute; left: 0; top: 6px; width: 4px; height: 4px; border-radius: 50%; background: #5bcba5; }
+
+@keyframes projectCardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .activity-panel { margin-top: 26px; border: 1px solid var(--border); border-radius: 14px; background: rgba(16,19,27,.75); overflow: hidden; }
 .activity-header { min-height: 61px; display: flex; align-items: center; justify-content: space-between; padding: 13px 17px; border-bottom: 1px solid var(--border); }
@@ -359,6 +416,8 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
 @media (max-width: 1040px) {
   .app-shell { grid-template-columns: 196px 1fr; }
   .content { padding-left: 24px; padding-right: 24px; }
+  .about-hero { padding-left: 27px; padding-right: 27px; }
+  .github-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backup-history-columns, .backup-history-row { grid-template-columns: minmax(145px, 1.1fr) minmax(130px, 1fr) 58px minmax(145px, 1.1fr) 84px; gap: 8px; }
   .backup-history-heading { gap: 12px; }
   .restore-consent { max-width: 335px; }
@@ -371,6 +430,10 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
   .content { padding-left: 20px; padding-right: 20px; }
   .usage-card-grid, .backup-grid { grid-template-columns: 1fr; }
   .about-grid { grid-template-columns: 1fr; }
+  .about-hero { min-height: 160px; padding: 24px; }
+  .about-hero-emblem { width: 92px; height: 92px; border-radius: 26px; }
+  .about-hero-emblem strong { font-size: 36px; }
+  .github-project-grid { grid-template-columns: 1fr; }
   .first-run-sections { grid-template-columns: 1fr; }
   .runtime-card { grid-template-columns: 42px minmax(0, 1fr); }
   .runtime-icon { width: 42px; height: 42px; }
@@ -383,4 +446,10 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
   .backup-history-state { grid-column: 1 / -1; grid-row: 2; }
   .backup-history-state small { white-space: normal; }
   .history-restore-button { grid-column: 4; grid-row: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-project-card { animation: none; }
+  .github-project-card, .about-project-card, .about-update-card { transition: none; }
+  .github-project-card:hover, .about-project-card:hover, .about-update-card:hover { transform: none; }
 }

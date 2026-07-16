@@ -5,6 +5,9 @@ const state = {
   usageLoading: false,
   updateStatus: null,
   updateLoading: false,
+  githubProjects: [],
+  githubProjectsLoading: false,
+  githubProjectsLoaded: false,
   environmentLoading: false,
   selectedApp: null,
   locale: "zh-cn",
@@ -24,6 +27,10 @@ const tauri = window.__TAURI__;
 const invoke = tauri?.core?.invoke;
 const listen = tauri?.event?.listen;
 const appWindow = tauri?.window?.getCurrentWindow?.();
+const browserPreviewSection = !invoke
+  && new URLSearchParams(window.location.search).get("preview") === "about"
+  ? "about"
+  : null;
 
 function timeNow() {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -199,6 +206,22 @@ function browserFallbackUpdateStatus() {
     publishedAt: new Date().toISOString(),
     message: "浏览器预览样例: 当前 v0.3.7 已是最新版本",
   };
+}
+
+function browserFallbackGitHubProjects() {
+  return [
+    {
+      name: "cursor-i18n-zh",
+      fullName: "svipm/cursor-i18n-zh",
+      description: "为 Cursor 和 Claude Desktop 提供安全备份, 汉化安装, 原版恢复和用量监控的桌面工作台.",
+      htmlUrl: "https://github.com/svipm/cursor-i18n-zh",
+      language: "JavaScript",
+      stars: 13,
+      forks: 2,
+      topics: ["cursor", "localization", "tauri"],
+      updatedAt: new Date().toISOString(),
+    },
+  ];
 }
 
 function updateEnvironmentView() {
@@ -582,6 +605,187 @@ async function openProjectPage(page) {
   }
 }
 
+function projectLanguageColor(language) {
+  const colors = {
+    JavaScript: "#f1e05a",
+    TypeScript: "#3178c6",
+    Rust: "#dea584",
+    Python: "#3572a5",
+    Go: "#00add8",
+    HTML: "#e34c26",
+    CSS: "#563d7c",
+    Vue: "#41b883",
+  };
+  return colors[language] || "#8b5cf6";
+}
+
+function formatProjectDate(value) {
+  if (!value) return "近期维护";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "近期维护";
+  return `${new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date)} 更新`;
+}
+
+function setGitHubProjectsState(tone, title, message) {
+  const panel = $("#githubProjectsState");
+  const icons = { loading: "↻", empty: "◇", failed: "!" };
+  panel.className = `project-loading-state ${tone}`;
+  panel.querySelector(".project-state-icon").textContent = icons[tone] || "↻";
+  panel.querySelector("strong").textContent = title;
+  panel.querySelector("p").textContent = message;
+}
+
+function createProjectStat(icon, value, label) {
+  const item = document.createElement("span");
+  const symbol = document.createElement("b");
+  const count = document.createElement("strong");
+  const caption = document.createElement("small");
+  symbol.textContent = icon;
+  count.textContent = formatNumber(value);
+  caption.textContent = label;
+  item.append(symbol, count, caption);
+  return item;
+}
+
+function renderGitHubProjects(projects) {
+  const grid = $("#githubProjectsGrid");
+  grid.replaceChildren();
+  state.githubProjects = Array.isArray(projects) ? projects : [];
+  if (!state.githubProjects.length) {
+    setGitHubProjectsState("empty", "暂时没有可展示的项目", "公开仓库列表为空, 稍后可以重新刷新.");
+    return;
+  }
+
+  $("#githubProjectsState").className = "project-loading-state hidden";
+  state.githubProjects.forEach((project, index) => {
+    const card = document.createElement("article");
+    card.className = "github-project-card";
+    card.style.setProperty("--project-delay", `${Math.min(index * 45, 225)}ms`);
+
+    const header = document.createElement("div");
+    header.className = "github-project-card-header";
+    const mark = document.createElement("div");
+    mark.className = "project-repository-mark";
+    mark.textContent = (project.name || "P").slice(0, 1).toUpperCase();
+    const identity = document.createElement("div");
+    identity.className = "project-identity";
+    const owner = document.createElement("span");
+    owner.textContent = "svipm / public";
+    const name = document.createElement("h4");
+    name.textContent = project.name || "未命名项目";
+    identity.append(owner, name);
+    const starBadge = document.createElement("span");
+    starBadge.className = "project-star-badge";
+    starBadge.textContent = `★ ${formatNumber(project.stars)}`;
+    header.append(mark, identity, starBadge);
+
+    const description = document.createElement("p");
+    description.className = "github-project-description";
+    description.textContent = project.description || "一个持续维护的开源项目, 欢迎查看源码和参与改进.";
+
+    const topics = document.createElement("div");
+    topics.className = "project-topics";
+    const visibleTopics = Array.isArray(project.topics) ? project.topics.slice(0, 3) : [];
+    if (!visibleTopics.length) visibleTopics.push("open-source");
+    visibleTopics.forEach((topic) => {
+      const tag = document.createElement("span");
+      tag.textContent = topic;
+      topics.appendChild(tag);
+    });
+
+    const meta = document.createElement("div");
+    meta.className = "project-meta";
+    const language = document.createElement("span");
+    language.className = "project-language";
+    const languageDot = document.createElement("i");
+    languageDot.style.backgroundColor = projectLanguageColor(project.language);
+    const languageText = document.createElement("strong");
+    languageText.textContent = project.language || "多语言";
+    language.append(languageDot, languageText);
+    const updated = document.createElement("span");
+    updated.className = "project-updated";
+    updated.textContent = formatProjectDate(project.updatedAt);
+    meta.append(language, updated);
+
+    const stats = document.createElement("div");
+    stats.className = "project-stats";
+    stats.append(
+      createProjectStat("★", project.stars, "Stars"),
+      createProjectStat("⑂", project.forks, "Forks"),
+    );
+
+    const actions = document.createElement("div");
+    actions.className = "project-card-actions";
+    const viewButton = document.createElement("button");
+    viewButton.className = "secondary-button";
+    viewButton.dataset.projectUrl = project.htmlUrl;
+    viewButton.dataset.projectAction = "view";
+    viewButton.textContent = "查看项目";
+    const starButton = document.createElement("button");
+    starButton.className = "primary-button project-star-button";
+    starButton.dataset.projectUrl = project.htmlUrl;
+    starButton.dataset.projectAction = "star";
+    starButton.innerHTML = "<span aria-hidden=\"true\">★</span>前往 Star";
+    actions.append(viewButton, starButton);
+
+    card.append(header, description, topics, meta, stats, actions);
+    grid.appendChild(card);
+  });
+}
+
+async function loadGitHubProjects({ force = false } = {}) {
+  if (state.githubProjectsLoading || (state.githubProjectsLoaded && !force)) return;
+  state.githubProjectsLoading = true;
+  const button = $("#refreshProjectsButton");
+  button.disabled = true;
+  button.classList.add("scanning");
+  if (!state.githubProjects.length) {
+    setGitHubProjectsState("loading", "正在读取公开项目", "正在连接 GitHub 获取最新 Star 和维护信息.");
+  }
+  try {
+    const projects = invoke ? await invoke("github_projects") : browserFallbackGitHubProjects();
+    const normalizedProjects = Array.isArray(projects) ? projects : [];
+    renderGitHubProjects(normalizedProjects);
+    state.githubProjectsLoaded = true;
+    addLog("DONE", `GitHub 热门项目已刷新, 共展示 ${normalizedProjects.length} 个公开仓库.`);
+  } catch (error) {
+    const message = normalizeError(error);
+    state.githubProjectsLoaded = false;
+    if (state.githubProjects.length) {
+      setGitHubProjectsState("failed", "刷新失败, 已保留上次结果", `${message}. 可以稍后重试.`);
+    } else {
+      $("#githubProjectsGrid").replaceChildren();
+      setGitHubProjectsState("failed", "暂时无法读取项目", `${message}. 不影响工作台其他功能.`);
+    }
+    addLog("WARN", `GitHub 项目读取失败: ${message}`);
+  } finally {
+    state.githubProjectsLoading = false;
+    button.disabled = false;
+    button.classList.remove("scanning");
+  }
+}
+
+async function openGitHubProject(url, action) {
+  if (!/^https:\/\/github\.com\/svipm\/[A-Za-z0-9._-]+\/?$/.test(url || "")) {
+    addLog("WARN", "已阻止不受支持的 GitHub 项目链接.");
+    showToast("项目链接未通过安全校验.", "warning");
+    return;
+  }
+  try {
+    if (invoke) await invoke("open_github_url", { url });
+    else window.open(url, "_blank", "noopener,noreferrer");
+    if (action === "star") {
+      showToast("已打开 GitHub, 登录后点击右上角 Star 即可支持项目.");
+    }
+  } catch (error) {
+    const message = normalizeError(error);
+    addLog("WARN", `打开 GitHub 项目失败: ${message}`);
+    showToast("无法打开 GitHub 项目.", "warning");
+  }
+}
+
 async function scanApps() {
   const button = $("#scanButton");
   button.classList.add("scanning");
@@ -924,6 +1128,7 @@ function activateSection(section) {
   if (aboutMode) {
     content.scrollTop = 0;
     loadGitHubAvatar();
+    loadGitHubProjects();
     return;
   }
   document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -939,6 +1144,12 @@ $("#scanButton").addEventListener("click", refreshEnvironmentAndApps);
 $("#nodeRuntimeRefreshButton").addEventListener("click", refreshEnvironmentAndApps);
 $("#refreshUsageButton").addEventListener("click", loadUsage);
 $("#checkUpdateButton").addEventListener("click", () => loadUpdateStatus({ notify: true }));
+$("#refreshProjectsButton").addEventListener("click", () => loadGitHubProjects({ force: true }));
+$("#githubProjectsGrid").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-project-url]");
+  if (!button) return;
+  openGitHubProject(button.dataset.projectUrl, button.dataset.projectAction);
+});
 $("#reviewConsentButton").addEventListener("click", () => showFirstRunDialog(false));
 $$(`[data-project-page]`).forEach((button) => {
   button.addEventListener("click", () => openProjectPage(button.dataset.projectPage));
@@ -994,7 +1205,8 @@ $("#closeButton").addEventListener("click", () => appWindow?.close());
 
 window.addEventListener("DOMContentLoaded", async () => {
   await registerProgressListener();
-  await waitForFirstRunConsent();
+  if (!browserPreviewSection) await waitForFirstRunConsent();
   await refreshEnvironmentAndApps();
   await Promise.all([loadUsage(), loadUpdateStatus({ notify: true })]);
+  if (browserPreviewSection) activateSection(browserPreviewSection);
 });

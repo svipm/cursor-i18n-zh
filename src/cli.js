@@ -62,6 +62,12 @@ function existingTargets(appDir) {
   return discoverTargets(appDir).filter((rel) => fs.existsSync(path.join(appDir, rel)));
 }
 
+function classifyTargetState(liveHash, backupHash, officialHash) {
+  const originalHash = backupHash || officialHash;
+  if (!originalHash) return '(无原始校验基准)';
+  return liveHash === originalHash ? '原版' : '已修改';
+}
+
 // 通过 stdin 交给 Node 语法检查, 避免为每个超大入口包创建临时文件.
 function syntaxCheck(text, rel) {
   const common = { encoding: 'utf8', input: text, maxBuffer: 1024 * 1024 };
@@ -497,10 +503,11 @@ function cmdStatus() {
   log(`词典: 代码层 ${dicts.code.size} 条, nls 层 ${Object.keys(dicts.nls).length} 条`);
   for (const rel of existingTargets(appDir)) {
     const key = rel.replace(/^out\//, '');
-    const expected = product.checksums && product.checksums[key];
-    const state = !expected
-      ? '(无官方 checksum)'
-      : sha256b64(fs.readFileSync(path.join(appDir, rel))) === expected ? '原版' : '已修改';
+    const liveHash = sha256b64(fs.readFileSync(path.join(appDir, rel)));
+    const original = backupFilePath(bdir, rel);
+    const backupHash = fs.existsSync(original) ? sha256b64(fs.readFileSync(original)) : null;
+    const officialHash = product.checksums && product.checksums[key];
+    const state = classifyTargetState(liveHash, backupHash, officialHash);
     log(`  ${rel}: ${state}`);
   }
   const argvFile = path.join(os.homedir(), '.cursor', 'argv.json');
@@ -625,6 +632,7 @@ if (require.main === module) process.exit(main());
 module.exports = {
   buildPatchPlan,
   buildUpdatedProduct,
+  classifyTargetState,
   commitPatchPlan,
   loadPatchContext,
   main,
