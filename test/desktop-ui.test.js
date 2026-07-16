@@ -257,6 +257,12 @@ test('desktop release flow downloads verified optional updates and scans publish
   assert.match(desktopMain, /async fn download_latest_update\(/);
   assert.match(release, /SHA256SUMS-macos\.txt/);
   assert.match(release, /with_config\(\)\s*\.limit/);
+  assert.match(release, /fn download_file\(/);
+  assert.match(release, /\[0_u8; 64 \* 1024\]/);
+  assert.match(release, /fn sha256_file\(/);
+  assert.match(release, /fn commit_download\(/);
+  assert.match(release, /pub cached: bool/);
+  assert.match(script, /result\.cached/);
   assert.match(release, /releases\/download\//);
   assert.match(securityCheck, /cursor-session/);
   assert.match(securityCheck, /screenshot-email/);

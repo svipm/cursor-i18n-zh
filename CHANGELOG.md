@@ -4,6 +4,23 @@
 
 ## [未发布]
 
+## [0.4.1] - 2026-07-16
+
+### 改进
+
+- 更新包改为 64 KB 缓冲区流式写盘和增量 SHA256, 不再将最大 250 MB 的发行资源整体读入内存.
+- 如果本地更新包 SHA256 与当前 Release 清单一致, 直接复用已校验缓存并打开所在目录.
+- 损坏或过期缓存会重新下载, 新文件通过临时文件和旧文件备份执行可回滚原子替换.
+- 下载、写盘或大小校验失败时自动删除不完整临时文件.
+- 更新日志和提示明确区分“流式下载完成”和“本地缓存已校验”.
+
+### 验证
+
+- Node.js 自动化测试 99 项全部通过.
+- Rust 自动化测试 57 项通过, 5 项实网测试在默认套件中忽略并已单独全部通过.
+- 新增本地 HTTP 流式下载、大小限制、增量哈希和覆盖旧缓存测试.
+- Windows Release 构建、便携包内容与 SHA256 冒烟验证通过.
+
 ## [0.4.0] - 2026-07-16
 
 ### 新增
@@ -182,6 +199,7 @@
 - 改进 NLS 合并, 繁体转换和 JavaScript tokenizer 替换引擎.
 - 增加 CI 词典检查, ZIP 冒烟测试和 GitHub Release 自动发布.
 
+[0.4.1]: https://github.com/svipm/cursor-i18n-zh/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.9...v0.4.0
 [0.3.9]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.7...v0.3.8

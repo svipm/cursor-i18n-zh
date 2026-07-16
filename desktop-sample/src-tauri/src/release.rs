@@ -2,7 +2,8 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use ureq::Error;
@@ -33,6 +34,7 @@ pub struct UpdateDownloadResult {
     pub version: String,
     pub path: String,
     pub sha256: String,
+    pub cached: bool,
 }
 
 pub fn check_for_updates() -> Result<UpdateStatus, String> {
@@ -110,30 +112,37 @@ pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
     let checksum_text =
         String::from_utf8(checksum_text).map_err(|_| "发行版 SHA256 文件不是 UTF-8".to_string())?;
     let expected = checksum_for(&checksum_text, &asset_name)?;
-    let data = download_bytes(&agent, &asset_url, 250 * 1024 * 1024)?;
-    let actual = sha256_hex(&data);
-    if !actual.eq_ignore_ascii_case(&expected) {
-        return Err(format!(
-            "更新包 SHA256 校验失败, 期望 {expected}, 实际 {actual}"
-        ));
-    }
     let root = local_app_data().join("updates").join(format!("v{version}"));
     fs::create_dir_all(&root)
         .map_err(|error| format!("无法创建更新目录 {}: {error}", root.display()))?;
     let path = root.join(&asset_name);
-    let temp = root.join(format!(".{asset_name}.tmp"));
-    fs::write(&temp, data)
-        .map_err(|error| format!("无法写入更新包 {}: {error}", temp.display()))?;
-    if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|error| format!("无法覆盖旧更新包 {}: {error}", path.display()))?;
+    const UPDATE_LIMIT: u64 = 250 * 1024 * 1024;
+    if path.is_file() {
+        if let Ok(actual) = sha256_file(&path, UPDATE_LIMIT) {
+            if actual.eq_ignore_ascii_case(&expected) {
+                return Ok(UpdateDownloadResult {
+                    version,
+                    path: path.display().to_string(),
+                    sha256: actual,
+                    cached: true,
+                });
+            }
+        }
     }
-    fs::rename(&temp, &path)
-        .map_err(|error| format!("无法提交更新包 {}: {error}", path.display()))?;
+    let temp = root.join(format!(".{asset_name}.tmp"));
+    let actual = download_file(&agent, &asset_url, &temp, UPDATE_LIMIT)?;
+    if !actual.eq_ignore_ascii_case(&expected) {
+        let _ = fs::remove_file(&temp);
+        return Err(format!(
+            "更新包 SHA256 校验失败, 期望 {expected}, 实际 {actual}"
+        ));
+    }
+    commit_download(&temp, &path)?;
     Ok(UpdateDownloadResult {
         version,
         path: path.display().to_string(),
         sha256: actual,
+        cached: false,
     })
 }
 
@@ -199,6 +208,126 @@ fn download_bytes(agent: &ureq::Agent, url: &str, limit: usize) -> Result<Vec<u8
     Ok(data)
 }
 
+fn download_file(
+    agent: &ureq::Agent,
+    url: &str,
+    path: &Path,
+    limit: u64,
+) -> Result<String, String> {
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|error| format!("无法清理旧更新临时文件 {}: {error}", path.display()))?;
+    }
+    let result = (|| {
+        let mut response = network::with_retry(|| {
+            agent
+                .get(url)
+                .header("User-Agent", "cursor-i18n-zh-workbench")
+                .call()
+        })
+        .map_err(github_error)?;
+        let mut reader = response
+            .body_mut()
+            .with_config()
+            .limit(limit.saturating_add(1))
+            .reader();
+        let mut file = File::create(path)
+            .map_err(|error| format!("无法创建更新临时文件 {}: {error}", path.display()))?;
+        let mut hasher = Sha256::new();
+        let mut total = 0_u64;
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let count = reader
+                .read(&mut buffer)
+                .map_err(|error| format!("读取更新资源失败: {error}"))?;
+            if count == 0 {
+                break;
+            }
+            total = total.saturating_add(count as u64);
+            if total > limit {
+                return Err(format!("更新资源超过大小限制: {} MB", limit / 1024 / 1024));
+            }
+            hasher.update(&buffer[..count]);
+            file.write_all(&buffer[..count])
+                .map_err(|error| format!("写入更新临时文件失败: {error}"))?;
+        }
+        file.sync_all()
+            .map_err(|error| format!("同步更新临时文件失败: {error}"))?;
+        Ok(digest_hex(hasher.finalize()))
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
+}
+
+fn sha256_file(path: &Path, limit: u64) -> Result<String, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("无法读取更新包信息 {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > limit {
+        return Err("缓存更新包不是安全的普通文件或超过大小限制".to_string());
+    }
+    let mut file = File::open(path)
+        .map_err(|error| format!("无法读取缓存更新包 {}: {error}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|error| format!("读取缓存更新包失败: {error}"))?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(digest_hex(hasher.finalize()))
+}
+
+fn commit_download(temp: &Path, path: &Path) -> Result<(), String> {
+    let temp_metadata = fs::symlink_metadata(temp)
+        .map_err(|error| format!("更新临时文件不存在 {}: {error}", temp.display()))?;
+    if temp_metadata.file_type().is_symlink() || !temp_metadata.is_file() {
+        return Err("更新临时路径必须是普通文件".to_string());
+    }
+    let backup = path.with_file_name(format!(
+        ".{}.previous",
+        path.file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("update")
+    ));
+    if backup.exists() {
+        fs::remove_file(&backup)
+            .map_err(|error| format!("无法清理更新备份 {}: {error}", backup.display()))?;
+    }
+    if path.exists() {
+        let metadata = fs::symlink_metadata(path)
+            .map_err(|error| format!("无法读取旧更新包 {}: {error}", path.display()))?;
+        if !metadata.is_file() && !metadata.file_type().is_symlink() {
+            return Err("旧更新缓存路径不是普通文件".to_string());
+        }
+        fs::rename(path, &backup)
+            .map_err(|error| format!("无法暂存旧更新包 {}: {error}", path.display()))?;
+    }
+    if let Err(error) = fs::rename(temp, path) {
+        let rollback = if backup.exists() {
+            fs::rename(&backup, path).map_err(|rollback_error| rollback_error.to_string())
+        } else {
+            Ok(())
+        };
+        return Err(match rollback {
+            Ok(()) => format!("无法提交更新包 {}: {error}", path.display()),
+            Err(rollback_error) => format!(
+                "无法提交更新包 {}: {error}; 同时恢复旧更新包失败: {rollback_error}",
+                path.display()
+            ),
+        });
+    }
+    if backup.exists() {
+        let _ = fs::remove_file(&backup);
+    }
+    Ok(())
+}
+
 fn checksum_for(content: &str, name: &str) -> Result<String, String> {
     content
         .lines()
@@ -211,8 +340,8 @@ fn checksum_for(content: &str, name: &str) -> Result<String, String> {
         .ok_or_else(|| format!("SHA256 文件缺少更新资源记录: {name}"))
 }
 
-fn sha256_hex(data: &[u8]) -> String {
-    Sha256::digest(data)
+fn digest_hex(data: impl AsRef<[u8]>) -> String {
+    data.as_ref()
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
@@ -262,6 +391,25 @@ fn compare_versions(left: &str, right: &str) -> Option<Ordering> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+
+    fn serve_once(body: &'static [u8]) -> (String, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let _ = stream.read(&mut request);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .unwrap();
+            stream.write_all(body).unwrap();
+        });
+        (format!("http://{address}/asset"), handle)
+    }
 
     #[test]
     fn compares_release_versions_numerically() {
@@ -296,6 +444,54 @@ mod tests {
             .unwrap(),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         );
+    }
+
+    #[test]
+    fn hashes_and_atomically_replaces_cached_updates() {
+        let root = std::env::temp_dir().join(format!(
+            "i18n-workbench-release-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("update.zip");
+        let temp = root.join(".update.zip.tmp");
+        fs::write(&path, b"old").unwrap();
+        fs::write(&temp, b"new-package").unwrap();
+        commit_download(&temp, &path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new-package");
+        assert_eq!(
+            sha256_file(&path, 1024).unwrap(),
+            digest_hex(Sha256::digest(b"new-package"))
+        );
+        assert!(!root.join(".update.zip.previous").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn streams_update_files_and_enforces_the_size_limit() {
+        let root = std::env::temp_dir().join(format!(
+            "i18n-workbench-release-stream-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let agent = network::platform_agent(Duration::from_secs(5));
+
+        let (url, server) = serve_once(b"streamed-update");
+        let path = root.join("streamed.tmp");
+        let hash = download_file(&agent, &url, &path, 1024).unwrap();
+        server.join().unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"streamed-update");
+        assert_eq!(hash, digest_hex(Sha256::digest(b"streamed-update")));
+
+        let (url, server) = serve_once(b"too-large");
+        let oversized = root.join("oversized.tmp");
+        let error = download_file(&agent, &url, &oversized, 4).unwrap_err();
+        server.join().unwrap();
+        assert!(error.contains("超过大小限制"));
+        assert!(!oversized.exists());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

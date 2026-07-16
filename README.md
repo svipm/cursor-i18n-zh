@@ -134,6 +134,8 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 - 在界面中检测 Node.js 版本, 管理员权限, 应用兼容状态和备份状态.
 - 首次启动先显示软件声明与隐私说明. 用户同意前不扫描本机应用, 不读取用量, 不检查版本.
 - 启动后可选检查 GitHub 最新正式版本. 用户可以手动下载官方 Release 更新包, 工作台会校验 SHA256 后打开所在目录, 不静默安装, 不强制更新.
+- 更新包使用 64 KB 缓冲区流式写入磁盘并同步计算 SHA256, 不再把最大 250 MB 的安装包整体保存在内存中.
+- 已下载且 SHA256 与当前 Release 清单一致的更新包会直接复用; 损坏缓存会重新下载并通过可回滚的原子替换提交.
 - GitHub 项目、扩展市场、版本检查和更新下载会对 HTTP 500/502/503/504、超时及短暂连接失败执行有限重试, 403/404 等永久错误不会重复请求.
 - 在独立扩展管理页维护 Cursor 与 Claude Code 的 MCP, Skill 和提示词, 支持用户级与项目级作用域及 GitHub 更新检查.
 - 扩展检查与市场安装显示统一进度反馈, 键盘支持 Esc 关闭弹窗和方向键切换 Tab, 并为焦点和减少动态效果提供无障碍适配.
@@ -143,14 +145,14 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 从 [最新发行版](https://github.com/svipm/cursor-i18n-zh/releases/latest) 下载推荐的完整便携包:
 
 ```text
-localization-workbench-v0.4.0-windows.zip
+localization-workbench-v0.4.1-windows.zip
 ```
 
 执行步骤:
 
 1. 解压完整 ZIP, 不要只移动其中的 EXE.
 2. 如果要汉化 Cursor, 先安装 Node.js 18 或更高版本.
-3. 双击 `localization-workbench-v0.4.0.exe`.
+3. 双击 `localization-workbench-v0.4.1.exe`.
 4. 阅读并同意首次启动声明与隐私说明.
 5. 打开“备份”页, 为目标应用创建并校验当前版本原始备份.
 6. 打开“软件中心”, 选择目标语言并安装汉化.
@@ -208,8 +210,8 @@ Claude Desktop 适配流程:
 
 macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 
-- `localization-workbench-v0.4.0-macos.dmg`: 推荐安装包.
-- `localization-workbench-v0.4.0-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
+- `localization-workbench-v0.4.1-macos.dmg`: 推荐安装包.
+- `localization-workbench-v0.4.1-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
 - 默认构建 Universal Binary, 同时包含 Apple Silicon `arm64` 和 Intel `x86_64`.
 - 从 Finder 启动时会定位 PATH, Homebrew, NVM, Volta, asdf, mise 和 fnm 中的 Node.js, 并使用检测到的实际可执行文件运行 Cursor 引擎.
 - 自动定位 `/Applications/Cursor.app/Contents/Resources/app` 和 `/Applications/Claude.app/Contents/Resources`.
@@ -286,10 +288,10 @@ GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成
 
 ## 发布产物
 
-- `localization-workbench-v0.4.0-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
-- `localization-workbench-v0.4.0.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
-- `localization-workbench-v0.4.0-macos.dmg`: macOS 推荐安装包.
-- `localization-workbench-v0.4.0-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
+- `localization-workbench-v0.4.1-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
+- `localization-workbench-v0.4.1.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `localization-workbench-v0.4.1-macos.dmg`: macOS 推荐安装包.
+- `localization-workbench-v0.4.1-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
 - `cursor-i18n-zh-windows.zip`: Cursor 终端版和传统入口.
 - `SHA256SUMS.txt`: 所有发布文件的 SHA256 校验值.
 
