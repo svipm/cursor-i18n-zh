@@ -147,7 +147,16 @@ jobs:
         run: cargo install tauri-cli --version '^2' --locked
 
       - name: Build macOS workbench
-        run: bash scripts/package-macos.sh
+        shell: bash
+        run: |
+          set +e
+          CARGO_TERM_COLOR=never bash scripts/package-macos.sh 2>&1 | tee macos-build.log
+          status=${PIPESTATUS[0]}
+          if (( status != 0 )); then
+            details=$(tail -n 80 macos-build.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            echo "::error title=macOS package failed::$details"
+            exit "$status"
+          fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
