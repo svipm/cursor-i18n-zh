@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -91,10 +91,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -120,10 +120,29 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Test cross-platform core
+      - name: Test Node.js core
+        shell: bash
         run: |
-          npm test
-          cargo test --locked --manifest-path desktop-sample/src-tauri/Cargo.toml
+          set -o pipefail
+          npm test 2>&1 | tee node-test.log
+          status=${PIPESTATUS[0]}
+          if (( status != 0 )); then
+            details=$(tail -n 80 node-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            echo "::error title=Node.js tests failed::$details"
+            exit "$status"
+          fi
+
+      - name: Test Rust core
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked --manifest-path desktop-sample/src-tauri/Cargo.toml 2>&1 | tee rust-test.log
+          status=${PIPESTATUS[0]}
+          if (( status != 0 )); then
+            details=$(tail -n 80 rust-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            echo "::error title=Rust tests failed::$details"
+            exit "$status"
+          fi
 
       - name: Build macOS workbench
         run: bash scripts/package-macos.sh
@@ -145,7 +164,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify tag matches package version
         shell: pwsh
