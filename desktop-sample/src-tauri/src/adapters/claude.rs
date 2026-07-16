@@ -1305,6 +1305,7 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn normalizes_nested_resource_paths_for_windows_tools() {
         let resources =
