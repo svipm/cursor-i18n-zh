@@ -274,6 +274,12 @@ h1 { margin: 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.7px; }
 .about-update-card.available .update-message { color: #9b8bc4; }
 .about-update-card.current .update-message { color: #71988a; }
 .about-update-card.failed .update-message { color: #9b8162; }
+.about-update-card .progress-wrap { margin-top: 12px; }
+.about-update-card .progress-wrap.complete .progress-label strong { color: #5ed5ab; }
+.about-update-card .progress-wrap.complete .progress-bar { background: linear-gradient(90deg, #2f9d78, #5ed5ab); }
+.about-update-card .progress-wrap.failed .progress-label { color: #b59a79; }
+.about-update-card .progress-wrap.failed .progress-label strong { color: #d6a96f; }
+.about-update-card .progress-wrap.failed .progress-bar { background: linear-gradient(90deg, #9b6d3d, #d6a96f); }
 .about-actions .hidden { display: none; }
 .featured-projects { position: relative; margin-top: 15px; padding: 21px; overflow: hidden; }
 .featured-projects::before { content: ""; position: absolute; right: -80px; top: -110px; width: 260px; height: 260px; border-radius: 50%; background: rgba(85,167,255,.055); filter: blur(25px); pointer-events: none; }

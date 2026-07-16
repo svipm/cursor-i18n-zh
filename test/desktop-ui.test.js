@@ -101,6 +101,11 @@ test('desktop UI exposes About, GitHub and optional update checks', () => {
     'updateCurrentVersion',
     'updateLatestVersion',
     'checkUpdateButton',
+    'downloadUpdateButton',
+    'updateDownloadProgress',
+    'updateDownloadProgressText',
+    'updateDownloadProgressValue',
+    'updateDownloadProgressBar',
     'viewUpdateButton',
     'githubAvatar',
     'githubProjectsState',
@@ -263,6 +268,13 @@ test('desktop release flow downloads verified optional updates and scans publish
   assert.match(release, /fn commit_download\(/);
   assert.match(release, /pub cached: bool/);
   assert.match(script, /result\.cached/);
+  assert.match(script, /update-download-progress/);
+  assert.match(script, /setUpdateDownloadProgress/);
+  assert.match(script, /updateProgressHideTimer/);
+  assert.match(script, /更新包已完成校验, 但无法打开所在目录/);
+  assert.match(script, /requestedBrowserUpdateProgress/);
+  assert.match(desktopMain, /UpdateDownloadProgress/);
+  assert.match(desktopMain, /app\.emit\(\s*"update-download-progress"/);
   assert.match(release, /releases\/download\//);
   assert.match(securityCheck, /cursor-session/);
   assert.match(securityCheck, /screenshot-email/);

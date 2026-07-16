@@ -15,7 +15,7 @@ use adapters::{
     ActionRequest, AppStatus, BackupRecord, EnvironmentStatus, OperationResult, ProgressSink,
 };
 use release::UpdateStatus;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use usage::UsageOverview;
 
 #[tauri::command]
@@ -50,10 +50,24 @@ async fn check_for_updates() -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
-async fn download_latest_update() -> Result<release::UpdateDownloadResult, String> {
-    tauri::async_runtime::spawn_blocking(release::download_latest_update)
-        .await
-        .map_err(|error| format!("更新包下载线程异常: {error}"))?
+async fn download_latest_update(app: AppHandle) -> Result<release::UpdateDownloadResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        release::download_latest_update(|percent, message| {
+            let _ = app.emit(
+                "update-download-progress",
+                UpdateDownloadProgress { percent, message },
+            );
+        })
+    })
+    .await
+    .map_err(|error| format!("更新包下载线程异常: {error}"))?
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateDownloadProgress {
+    percent: u8,
+    message: String,
 }
 
 #[tauri::command]

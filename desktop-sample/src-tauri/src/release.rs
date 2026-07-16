@@ -85,7 +85,10 @@ pub fn check_for_updates() -> Result<UpdateStatus, String> {
     })
 }
 
-pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
+pub fn download_latest_update(
+    mut progress: impl FnMut(u8, String),
+) -> Result<UpdateDownloadResult, String> {
+    progress(3, "正在读取 GitHub 最新发行版".to_string());
     let agent = network::platform_agent(Duration::from_secs(60));
     let release = fetch_latest_release(&agent)?;
     let tag = release
@@ -108,6 +111,7 @@ pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
     };
     let asset_url = release_asset_url(&release, &asset_name)?;
     let checksum_url = release_asset_url(&release, checksum_name)?;
+    progress(10, "正在下载并解析 SHA256 校验清单".to_string());
     let checksum_text = download_bytes(&agent, &checksum_url, 1024 * 1024)?;
     let checksum_text =
         String::from_utf8(checksum_text).map_err(|_| "发行版 SHA256 文件不是 UTF-8".to_string())?;
@@ -118,8 +122,10 @@ pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
     let path = root.join(&asset_name);
     const UPDATE_LIMIT: u64 = 250 * 1024 * 1024;
     if path.is_file() {
+        progress(15, "正在校验本地更新缓存".to_string());
         if let Ok(actual) = sha256_file(&path, UPDATE_LIMIT) {
             if actual.eq_ignore_ascii_case(&expected) {
+                progress(100, "本地更新缓存已通过 SHA256 校验".to_string());
                 return Ok(UpdateDownloadResult {
                     version,
                     path: path.display().to_string(),
@@ -130,14 +136,33 @@ pub fn download_latest_update() -> Result<UpdateDownloadResult, String> {
         }
     }
     let temp = root.join(format!(".{asset_name}.tmp"));
-    let actual = download_file(&agent, &asset_url, &temp, UPDATE_LIMIT)?;
+    progress(20, "正在流式下载更新包".to_string());
+    let actual = download_file(
+        &agent,
+        &asset_url,
+        &temp,
+        UPDATE_LIMIT,
+        |downloaded, total| {
+            let percent = total
+                .filter(|total| *total > 0)
+                .map(|total| 20_u8.saturating_add(((downloaded.min(total) * 70) / total) as u8))
+                .unwrap_or(45);
+            progress(
+                percent.min(90),
+                format!("已下载 {:.1} MB", downloaded as f64 / 1024.0 / 1024.0),
+            );
+        },
+    )?;
+    progress(93, "正在核对更新包 SHA256".to_string());
     if !actual.eq_ignore_ascii_case(&expected) {
         let _ = fs::remove_file(&temp);
         return Err(format!(
             "更新包 SHA256 校验失败, 期望 {expected}, 实际 {actual}"
         ));
     }
+    progress(97, "正在原子提交已校验更新包".to_string());
     commit_download(&temp, &path)?;
+    progress(100, "更新包已准备完成".to_string());
     Ok(UpdateDownloadResult {
         version,
         path: path.display().to_string(),
@@ -213,6 +238,7 @@ fn download_file(
     url: &str,
     path: &Path,
     limit: u64,
+    mut progress: impl FnMut(u64, Option<u64>),
 ) -> Result<String, String> {
     if path.exists() {
         fs::remove_file(path)
@@ -226,6 +252,12 @@ fn download_file(
                 .call()
         })
         .map_err(github_error)?;
+        let content_length = response
+            .headers()
+            .get("content-length")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| *value <= limit);
         let mut reader = response
             .body_mut()
             .with_config()
@@ -250,6 +282,7 @@ fn download_file(
             hasher.update(&buffer[..count]);
             file.write_all(&buffer[..count])
                 .map_err(|error| format!("写入更新临时文件失败: {error}"))?;
+            progress(total, content_length);
         }
         file.sync_all()
             .map_err(|error| format!("同步更新临时文件失败: {error}"))?;
@@ -480,14 +513,19 @@ mod tests {
 
         let (url, server) = serve_once(b"streamed-update");
         let path = root.join("streamed.tmp");
-        let hash = download_file(&agent, &url, &path, 1024).unwrap();
+        let mut samples = Vec::new();
+        let hash = download_file(&agent, &url, &path, 1024, |downloaded, total| {
+            samples.push((downloaded, total));
+        })
+        .unwrap();
         server.join().unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"streamed-update");
         assert_eq!(hash, digest_hex(Sha256::digest(b"streamed-update")));
+        assert_eq!(samples.last(), Some(&(15, Some(15))));
 
         let (url, server) = serve_once(b"too-large");
         let oversized = root.join("oversized.tmp");
-        let error = download_file(&agent, &url, &oversized, 4).unwrap_err();
+        let error = download_file(&agent, &url, &oversized, 4, |_, _| {}).unwrap_err();
         server.join().unwrap();
         assert!(error.contains("超过大小限制"));
         assert!(!oversized.exists());

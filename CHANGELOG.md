@@ -4,6 +4,22 @@
 
 ## [未发布]
 
+## [0.4.2] - 2026-07-17
+
+### 新增
+
+- 关于页新增更新下载进度条, 实时展示发行版读取、SHA256 清单、累计下载 MB、校验和原子提交阶段.
+- 后端通过独立 `update-download-progress` 事件发送进度, 不把下载任务或文件内容交给前端处理.
+- 有 Content-Length 时按实际字节比例显示 20% 至 90% 下载进度; 缺少长度时继续显示累计下载量.
+- 修复连续下载时旧计时器可能提前隐藏新进度的问题.
+- 更新包已经校验但打开所在目录失败时, 保留下载成功状态并显示独立警告, 不再误报为下载失败.
+
+### 验证
+
+- Node.js 自动化测试 99 项全部通过.
+- Rust 自动化测试 57 项通过, 5 项实网测试在默认套件中忽略并已单独全部通过.
+- Windows Release 构建、便携包和 SHA256 冒烟验证通过.
+
 ## [0.4.1] - 2026-07-16
 
 ### 改进
@@ -199,6 +215,7 @@
 - 改进 NLS 合并, 繁体转换和 JavaScript tokenizer 替换引擎.
 - 增加 CI 词典检查, ZIP 冒烟测试和 GitHub Release 自动发布.
 
+[0.4.2]: https://github.com/svipm/cursor-i18n-zh/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/svipm/cursor-i18n-zh/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.9...v0.4.0
 [0.3.9]: https://github.com/svipm/cursor-i18n-zh/compare/v0.3.8...v0.3.9

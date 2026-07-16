@@ -50,7 +50,7 @@
             <div><strong id="permissionTitle">正在检查权限</strong><small id="permissionText">请稍候...</small></div>
           </div>
           <div class="version-row">
-            <span>双应用工作台</span><span>v0.4.1</span>
+            <span>双应用工作台</span><span>v0.4.2</span>
           </div>
         </div>
       </aside>
@@ -134,7 +134,7 @@
               <div class="app-meta stacked-meta">
                 <span id="cursorVersion">版本: 检测中</span>
                 <span id="cursorInstallState">正在定位 resources/app...</span>
-                <span class="adapter-state">适配器 v0.4.1</span>
+                <span class="adapter-state">适配器 v0.4.2</span>
                 <span id="cursorCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
               </div>
               <button class="primary-button configure-button" data-open-app="cursor">配置汉化 <span>→</span></button>
@@ -487,7 +487,7 @@
               </div>
               <div class="about-hero-emblem" aria-hidden="true">
                 <strong>译</strong>
-                <span class="about-version-badge">v0.4.1</span>
+                <span class="about-version-badge">v0.4.2</span>
               </div>
             </div>
 
@@ -518,10 +518,14 @@
                   <span id="updateState" class="pill neutral">正在检查</span>
                 </div>
                 <div class="update-version-facts">
-                  <span>当前版本<strong id="updateCurrentVersion">v0.4.1</strong></span>
+                  <span>当前版本<strong id="updateCurrentVersion">v0.4.2</strong></span>
                   <span>最新版本<strong id="updateLatestVersion">--</strong></span>
                 </div>
                 <p id="updateMessage" class="update-message">正在连接 GitHub 检查正式发行版...</p>
+                <div id="updateDownloadProgress" class="progress-wrap hidden" aria-live="polite">
+                  <div class="progress-label"><span id="updateDownloadProgressText">准备下载更新包...</span><strong id="updateDownloadProgressValue">0%</strong></div>
+                  <div class="progress-track"><div id="updateDownloadProgressBar" class="progress-bar"></div></div>
+                </div>
                 <div class="about-actions">
                   <button id="checkUpdateButton" class="secondary-button"><span>↻</span>重新检查</button>
                   <button id="downloadUpdateButton" class="primary-button hidden">下载并校验更新包</button>

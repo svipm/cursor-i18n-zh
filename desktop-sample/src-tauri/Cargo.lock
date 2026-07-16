@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "cursor-i18n-desktop-sample"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "aes",
  "aes-gcm",

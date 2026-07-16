@@ -6,6 +6,8 @@ const state = {
   updateStatus: null,
   updateLoading: false,
   updateDownloading: false,
+  updateDownloadPercent: 0,
+  updateProgressHideTimer: null,
   githubProjects: [],
   githubProjectsLoading: false,
   githubProjectsLoaded: false,
@@ -56,6 +58,9 @@ const requestedBrowserEditor = !invoke
   : null;
 const requestedBrowserTab = !invoke
   ? new URLSearchParams(window.location.search).get("tab")
+  : null;
+const requestedBrowserUpdateProgress = !invoke
+  ? new URLSearchParams(window.location.search).get("updateProgress")
   : null;
 const browserPreviewSection = ["about", "extensions"].includes(requestedBrowserPreview)
   ? requestedBrowserPreview
@@ -170,7 +175,7 @@ function browserFallbackApps() {
   return [
     {
       id: "cursor", name: "Cursor", installed: true, ready: true, path: "浏览器预览模式",
-      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.4.1",
+      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.4.2",
       backupAvailable: true, backupPath: "浏览器预览模式\\backup\\preview", backupFiles: 7,
       backupMessage: "浏览器预览样例: 7 个文件已通过完整性校验", localized: false, reason: null,
       autoCompatible: true, compatibilityMessage: "已按资源结构自动适配未来 Cursor 版本, 安装前仍会执行完整语法预检",
@@ -228,13 +233,13 @@ function browserFallbackUsage() {
 
 function browserFallbackUpdateStatus() {
   return {
-    currentVersion: "0.4.1",
-    latestVersion: "0.4.1",
+    currentVersion: "0.4.2",
+    latestVersion: "0.4.2",
     updateAvailable: false,
     currentAhead: false,
     releaseUrl: "https://github.com/svipm/cursor-i18n-zh/releases",
     publishedAt: new Date().toISOString(),
-    message: "浏览器预览样例: 当前 v0.4.1 已是最新版本",
+    message: "浏览器预览样例: 当前 v0.4.2 已是最新版本",
   };
 }
 
@@ -676,22 +681,49 @@ async function loadUpdateStatus({ notify = false } = {}) {
 async function downloadLatestUpdate() {
   if (state.updateDownloading) return;
   state.updateDownloading = true;
+  window.clearTimeout(state.updateProgressHideTimer);
+  state.updateProgressHideTimer = null;
   const button = $("#downloadUpdateButton");
   setButtonBusy(button, true, "下载中...");
+  setUpdateDownloadProgress(1, "正在准备更新下载...");
   try {
     const result = invoke
       ? await invoke("download_latest_update")
-      : { version: "0.4.1", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo", cached: false };
+      : { version: "0.4.2", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo", cached: false };
     addLog("DONE", `更新包 v${result.version} ${result.cached ? "已从本地缓存复用" : "已流式下载"}并通过 SHA256 校验: ${result.path}`);
+    setUpdateDownloadProgress(100, result.cached ? "本地缓存已通过 SHA256 校验" : "更新包已下载并通过 SHA256 校验", "complete");
     showToast(`更新包 v${result.version} ${result.cached ? "缓存已校验" : "下载已完成"}.`, "success");
-    if (invoke) await invoke("open_downloaded_update", { path: result.path });
+    if (invoke) {
+      try {
+        await invoke("open_downloaded_update", { path: result.path });
+      } catch (error) {
+        addLog("WARN", `更新包已完成校验, 但无法打开所在目录: ${normalizeError(error)}`);
+        showToast("更新包已完成校验, 但无法自动打开所在目录.", "warning");
+      }
+    }
   } catch (error) {
     addLog("WARN", `更新包下载失败: ${normalizeError(error)}`);
+    setUpdateDownloadProgress(state.updateDownloadPercent || 1, "更新包下载或校验失败", "failed");
     showToast("更新包下载或校验失败.", "warning");
   } finally {
     state.updateDownloading = false;
     setButtonBusy(button, false);
+    state.updateProgressHideTimer = window.setTimeout(() => {
+      $("#updateDownloadProgress").classList.add("hidden");
+      state.updateProgressHideTimer = null;
+    }, 3200);
   }
+}
+
+function setUpdateDownloadProgress(percent, message, tone = "active") {
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  state.updateDownloadPercent = value;
+  const progress = $("#updateDownloadProgress");
+  progress.classList.remove("hidden", "complete", "failed");
+  if (tone !== "active") progress.classList.add(tone);
+  $("#updateDownloadProgressText").textContent = message;
+  $("#updateDownloadProgressValue").textContent = `${value}%`;
+  $("#updateDownloadProgressBar").style.width = `${value}%`;
 }
 
 async function openProjectPage(page) {
@@ -2706,6 +2738,10 @@ async function registerProgressListener() {
     else setProgress(payload.percent, payload.message);
     addLog(payload.level, payload.message);
   });
+  await listen("update-download-progress", ({ payload }) => {
+    if (!state.updateDownloading) return;
+    setUpdateDownloadProgress(payload.percent, payload.message);
+  });
 }
 
 function activateSection(section) {
@@ -2976,6 +3012,10 @@ window.addEventListener("DOMContentLoaded", async () => {
       updateExtensionControls();
     }
     activateSection(browserPreviewSection);
+    const previewProgress = Number(requestedBrowserUpdateProgress);
+    if (browserPreviewSection === "about" && requestedBrowserUpdateProgress !== null && Number.isFinite(previewProgress)) {
+      setUpdateDownloadProgress(previewProgress, "浏览器预览样例: 正在流式下载更新包");
+    }
     if (browserPreviewSection === "extensions" && requestedBrowserEditor === "mcp") {
       window.setTimeout(() => openMcpEditor("github"), 200);
     }
