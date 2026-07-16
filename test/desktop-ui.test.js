@@ -377,6 +377,7 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /Download and install official Cursor build\s*\n\s*timeout-minutes:\s*15/);
   assert.match(cursorCompatWorkflow, /Start-Process[^\n]+-PassThru\s*$/m);
   assert.doesNotMatch(cursorCompatWorkflow, /Start-Process[^\n]+-Wait/);
+  assert.match(cursorCompatWorkflow, /'\/VERYSILENT', '\/SUPPRESSMSGBOXES', '\/NORESTART', '\/SP-'/);
   assert.match(cursorCompatWorkflow, /\[DateTime\]::UtcNow\.AddMinutes\(12\)/);
   assert.match(cursorCompatWorkflow, /candidate\.version[^\n]+release\.version/);
   assert.match(cursorCompatWorkflow, /candidate\.commit[^\n]+release\.commit/);

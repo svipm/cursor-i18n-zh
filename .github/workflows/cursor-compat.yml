@@ -110,7 +110,8 @@ jobs:
           Get-Process -Name Cursor -ErrorAction SilentlyContinue | Stop-Process -Force
           $appDir = Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app'
           $productPath = Join-Path $appDir 'product.json'
-          $process = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru
+          $installerArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
+          $process = Start-Process -FilePath $installer -ArgumentList $installerArguments -PassThru
           $deadline = [DateTime]::UtcNow.AddMinutes(12)
           $installedProduct = $null
           try {
