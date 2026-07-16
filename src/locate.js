@@ -47,11 +47,18 @@ function appDirFrom(value) {
   if (fs.existsSync(path.join(p, 'resources', 'app', 'product.json'))) {
     return path.join(p, 'resources', 'app');
   }
+  if (fs.existsSync(path.join(p, 'Contents', 'Resources', 'app', 'product.json'))) {
+    return path.join(p, 'Contents', 'Resources', 'app');
+  }
 
   const base = path.basename(p).toLowerCase();
   const dir = fs.existsSync(p) && fs.statSync(p).isFile() ? path.dirname(p) : p;
   if (fs.existsSync(path.join(dir, 'resources', 'app', 'product.json'))) {
     return path.join(dir, 'resources', 'app');
+  }
+  if (process.platform === 'darwin'
+    && fs.existsSync(path.join(dir, '..', 'Resources', 'app', 'product.json'))) {
+    return path.resolve(dir, '..', 'Resources', 'app');
   }
   if (base === 'cursor.exe' && fs.existsSync(path.join(dir, 'resources', 'app', 'product.json'))) {
     return path.join(dir, 'resources', 'app');
@@ -136,8 +143,14 @@ function sourceCandidates() {
     process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Cursor'),
     process.env.ProgramFiles && path.join(process.env.ProgramFiles, 'Cursor'),
     process.env['ProgramFiles(x86)'] && path.join(process.env['ProgramFiles(x86)'], 'Cursor'),
+    process.platform === 'darwin' && '/Applications/Cursor.app',
+    process.platform === 'darwin' && path.join(process.env.HOME || '', 'Applications', 'Cursor.app'),
   ];
-  for (const root of roots) if (root) add('常见安装目录', [root, path.join(root, 'resources', 'app')]);
+  for (const root of roots) if (root) add('常见安装目录', [
+    root,
+    path.join(root, 'resources', 'app'),
+    path.join(root, 'Contents', 'Resources', 'app'),
+  ]);
 
   add('常见父目录扫描', [
     ...childCursorDirs(process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs')),

@@ -86,6 +86,7 @@ test('restores the exact previous install state when adding a language pack fail
       if (command === process.execPath) return { status: 0, stdout: '', stderr: '' };
       if (command === 'taskkill.exe') return { status: 0, stdout: '', stderr: '' };
       if (command === 'tasklist.exe') return { status: 0, stdout: '', stderr: '' };
+      if (command === 'pgrep') return { status: 1, stdout: '', stderr: '' };
       if (args && args[0] === '--install-extension') {
         packInstalled = true;
         return { status: 0, stdout: '', stderr: '' };

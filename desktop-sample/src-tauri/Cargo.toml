@@ -1,7 +1,7 @@
 [package]
 name = "cursor-i18n-desktop-sample"
-version = "0.3.7"
-description = "Windows desktop localization workbench"
+version = "0.3.8"
+description = "Cross-platform desktop localization workbench"
 authors = ["svipm"]
 edition = "2021"
 
@@ -16,6 +16,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 tauri = { version = "2", features = [] }
 ureq = { version = "3.3.0", features = ["json", "platform-verifier", "win-system-proxy"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }
 
 [profile.release]
 codegen-units = 1

@@ -22,6 +22,15 @@ const desktopMain = fs.readFileSync(
   path.join(root, 'desktop-sample', 'src-tauri', 'src', 'main.rs'),
   'utf8',
 );
+const extensions = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'extensions.rs'),
+  'utf8',
+);
+const market = fs.readFileSync(
+  path.join(root, 'desktop-sample', 'src-tauri', 'src', 'market.rs'),
+  'utf8',
+);
+const buildWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build.yml'), 'utf8');
 
 test('desktop UI exposes usage and backup history controls', () => {
   for (const id of [
@@ -108,6 +117,89 @@ test('desktop GitHub project feed is public, sorted and URL restricted', () => {
   assert.doesNotMatch(`${html}\n${script}\n${github}`, /github[_-]?token/i);
 });
 
+test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market', () => {
+  for (const id of [
+    'extensions',
+    'extensionWorkspaceControl',
+    'extensionMcpList',
+    'extensionSkillList',
+    'extensionPromptList',
+    'extensionMarketList',
+    'extensionActivityBanner',
+    'addMcpButton',
+    'addSkillButton',
+    'addPromptButton',
+    'refreshMarketButton',
+    'mcpEditorBackdrop',
+    'skillEditorBackdrop',
+    'promptEditorBackdrop',
+    'mcpEnvInput',
+    'mcpHeadersInput',
+    'skillContentInput',
+    'promptContentInput',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  for (const command of [
+    'extension_inventory',
+    'extension_mcp_details',
+    'extension_save_mcp',
+    'extension_toggle_mcp',
+    'extension_delete_mcp',
+    'extension_skill_details',
+    'extension_save_skill',
+    'extension_toggle_skill',
+    'extension_delete_skill',
+    'extension_prompt_details',
+    'extension_save_prompt',
+    'extension_toggle_prompt',
+    'extension_delete_prompt',
+    'extension_market',
+    'extension_install_market_item',
+    'choose_extension_workspace',
+  ]) {
+    assert.match(script, new RegExp(`invoke\\("${command}"`));
+    assert.match(desktopMain, new RegExp(command));
+  }
+  assert.match(script, /content\.classList\.toggle\("extensions-mode", extensionMode\)/);
+  assert.match(script, /••••••/);
+  assert.match(styles, /\.extension-item-card/);
+  assert.match(styles, /\.extension-editor-modal/);
+  assert.match(extensions, /home\.join\("\.cursor\/mcp\.json"\)/);
+  assert.match(extensions, /home\.join\("\.claude\.json"\)/);
+  assert.match(extensions, /root\.join\("\.mcp\.json"\)/);
+  assert.match(extensions, /home\.join\("\.cursor\/skills-cursor"\)/);
+  assert.match(extensions, /home\.join\("\.cursor\/rules"\)/);
+  assert.match(extensions, /home\.join\("\.claude\/rules"\)/);
+  assert.match(extensions, /REDACTED_VALUE/);
+  assert.match(extensions, /extension-config-backups/);
+  assert.match(extensions, /extension-registry/);
+  assert.match(extensions, /install_skill_bundle/);
+  assert.match(market, /MAX_TOTAL_BYTES/);
+  assert.match(market, /fetch_repository_directory/);
+  assert.match(cargo, /windows-sys/);
+  assert.match(market, /api\.github\.com\/repos\/\{slug\}\/commits/);
+  assert.match(market, /raw\.githubusercontent\.com/);
+  assert.match(buildWorkflow, /runs-on: macos-14/);
+  assert.match(buildWorkflow, /package-macos\.sh/);
+  assert.match(desktopMain, /target_os = "macos"/);
+});
+
+test('desktop UI provides accessible focus, keyboard navigation and long-operation feedback', () => {
+  assert.match(html, /id="extensionActivityBanner"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /data-extension-tab="mcp"[^>]*aria-selected="true"/);
+  assert.match(html, /id="toast"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(script, /function setExtensionActivity\(/);
+  assert.match(script, /setAttribute\("aria-busy", String\(active\)\)/);
+  assert.match(script, /\["ArrowLeft", "ArrowRight", "Home", "End"\]/);
+  assert.match(script, /event\.key !== "Escape"/);
+  assert.match(script, /requestAnimationFrame\(\(\) => \$\("#mcpNameInput"\)\.focus\(\)\)/);
+  assert.match(styles, /button:focus-visible/);
+  assert.match(styles, /\.extension-activity-banner/);
+  assert.match(styles, /\.extension-section\.is-busy/);
+  assert.match(styles, /animation-duration: \.01ms !important/);
+});
+
 test('desktop UI gates first launch before local or network initialization', () => {
   for (const id of [
     'firstRunBackdrop',
@@ -123,7 +215,8 @@ test('desktop UI gates first launch before local or network initialization', () 
   assert.match(html, /隐私说明/);
   assert.match(script, /i18nWorkbench\.firstRunConsent\.v2/);
   assert.match(script, /if \(!browserPreviewSection\) await waitForFirstRunConsent\(\);\s*await refreshEnvironmentAndApps\(\);/);
-  assert.match(script, /!invoke[\s\S]*get\("preview"\) === "about"/);
+  assert.match(script, /get\("preview"\)/);
+  assert.match(script, /\["about", "extensions"\]\.includes\(requestedBrowserPreview\)/);
   assert.ok(
     script.indexOf('await waitForFirstRunConsent();')
       < script.indexOf('await Promise.all([loadUsage(), loadUpdateStatus({ notify: true })]);'),

@@ -308,6 +308,7 @@ fn install_patch(
         ensure_write_access(&install.resources.join(file.relative_path))?;
     }
     commit_prepared(&install.resources, &backup, &prepared)?;
+    finalize_platform_install(install)?;
     sink.emit(92, "INFO", "资源文件已写入并完成回读校验.");
 
     write_state(
@@ -380,6 +381,7 @@ fn restore(
         ensure_write_access(&install.resources.join(file.relative_path))?;
     }
     commit_prepared(&install.resources, &backup, &prepared)?;
+    finalize_platform_install(install)?;
     sink.emit(90, "INFO", "3 个原始资源文件已恢复并完成校验.");
 
     write_state(
@@ -831,6 +833,11 @@ fn ensure_write_access(path: &Path) -> Result<(), String> {
     {
         return Ok(());
     }
+    ensure_platform_write_access(path)
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_platform_write_access(path: &Path) -> Result<(), String> {
     if !is_elevated() {
         return Err(format!(
             "没有写入权限: {}. 请使用界面中的管理员权限重启按钮",
@@ -876,6 +883,23 @@ fn ensure_write_access(path: &Path) -> Result<(), String> {
         .map_err(|error| format!("权限处理后仍无法写入 {}: {error}", path.display()))
 }
 
+#[cfg(not(target_os = "windows"))]
+fn ensure_platform_write_access(path: &Path) -> Result<(), String> {
+    if !is_elevated() {
+        return Err(format!(
+            "没有写入权限: {}. 请使用界面中的管理员权限重启按钮并输入系统密码",
+            path.display()
+        ));
+    }
+    fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map(|_| ())
+        .map_err(|error| format!("管理员权限下仍无法写入 {}: {error}", path.display()))
+}
+
+#[cfg(target_os = "windows")]
 fn windows_tool_path(path: &Path) -> String {
     path.as_os_str().to_string_lossy().replace('/', "\\")
 }
@@ -902,6 +926,7 @@ fn command_failure_detail(output: &Output) -> String {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn stop_claude() -> Result<(), String> {
     let _ = hidden_command("taskkill.exe")
         .args(["/IM", "Claude.exe", "/F"])
@@ -920,11 +945,51 @@ fn stop_claude() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn stop_claude() -> Result<(), String> {
+    let _ = hidden_command("osascript")
+        .args(["-e", "tell application \"Claude\" to quit"])
+        .status();
+    std::thread::sleep(Duration::from_millis(700));
+    let running = hidden_command("pgrep")
+        .args(["-x", "Claude"])
+        .status()
+        .is_ok_and(|status| status.success());
+    if running {
+        let _ = hidden_command("pkill")
+            .args(["-9", "-x", "Claude"])
+            .status();
+        std::thread::sleep(Duration::from_millis(350));
+    }
+    let still_running = hidden_command("pgrep")
+        .args(["-x", "Claude"])
+        .status()
+        .is_ok_and(|status| status.success());
+    if still_running {
+        Err("Claude 仍在运行, 请手动完全退出后重试".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn stop_claude() -> Result<(), String> {
+    let _ = hidden_command("pkill")
+        .args(["-9", "-x", "Claude"])
+        .status();
+    Ok(())
+}
+
 fn resolve_install() -> Result<ClaudeInstall, String> {
     if let Some(resources) = std::env::var_os("CLAUDE_RESOURCES_DIR").map(PathBuf::from) {
         return install_from_resources(resources, "manual".to_string());
     }
 
+    resolve_platform_install()
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_platform_install() -> Result<ClaudeInstall, String> {
     let script = "$p=Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1; if ($p) { [Console]::OutputEncoding=[Text.UTF8Encoding]::new(); Write-Output $p.InstallLocation; Write-Output $p.Version; Write-Output $p.PackageFullName }";
     if let Ok(output) = hidden_command("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
@@ -1001,6 +1066,59 @@ fn resolve_install() -> Result<ClaudeInstall, String> {
         return install_from_resources(local_candidate, "Claude".to_string());
     }
     Err("未找到 Claude Desktop 的 3 个目标资源文件".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_platform_install() -> Result<ClaudeInstall, String> {
+    let mut candidates = vec![PathBuf::from("/Applications/Claude.app/Contents/Resources")];
+    if let Some(home) = std::env::var_os("I18N_WORKBENCH_USER_HOME")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+    {
+        candidates.push(home.join("Applications/Claude.app/Contents/Resources"));
+    }
+    for resources in candidates {
+        if validate_resource_structure(&resources).is_err() {
+            continue;
+        }
+        let app = resources
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("/Applications/Claude.app"));
+        let info = app.join("Contents/Info.plist");
+        let version = hidden_command("plutil")
+            .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
+            .arg(&info)
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| version_from_path(&app));
+        return Ok(ClaudeInstall {
+            install_location: app,
+            resources,
+            version,
+            package_name: "Claude.app".to_string(),
+        });
+    }
+    Err("未找到 /Applications/Claude.app 中的 3 个目标资源文件".to_string())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn resolve_platform_install() -> Result<ClaudeInstall, String> {
+    Err("当前平台尚未提供 Claude Desktop 安装目录适配".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn finalize_platform_install(install: &ClaudeInstall) -> Result<(), String> {
+    super::resign_macos_app(&install.install_location, "Claude.app", true)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn finalize_platform_install(_install: &ClaudeInstall) -> Result<(), String> {
+    Ok(())
 }
 
 fn install_from_resources(

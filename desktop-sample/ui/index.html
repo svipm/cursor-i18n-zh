@@ -32,6 +32,10 @@
           <button class="nav-item" data-section="usage">
             <span class="nav-icon">◉</span><span>用量监控</span>
           </button>
+          <button class="nav-item" data-section="extensions">
+            <span class="nav-icon">⬡</span><span>扩展管理</span>
+            <span id="extensionNavBadge" class="nav-badge">MCP</span>
+          </button>
           <button class="nav-item" data-section="logs">
             <span class="nav-icon">◷</span><span>运行日志</span>
           </button>
@@ -46,7 +50,7 @@
             <div><strong id="permissionTitle">正在检查权限</strong><small id="permissionText">请稍候...</small></div>
           </div>
           <div class="version-row">
-            <span>双应用工作台</span><span>v0.3.7</span>
+            <span>双应用工作台</span><span>v0.3.8</span>
           </div>
         </div>
       </aside>
@@ -55,7 +59,7 @@
         <header class="titlebar" data-tauri-drag-region>
           <div class="breadcrumb" data-tauri-drag-region>
             <span class="status-dot"></span>
-            <span id="headerStatus">服务运行正常</span>
+            <span id="headerStatus" role="status" aria-live="polite">服务运行正常</span>
           </div>
           <div class="window-controls">
             <button id="minimizeButton" aria-label="最小化">—</button>
@@ -130,7 +134,7 @@
               <div class="app-meta stacked-meta">
                 <span id="cursorVersion">版本: 检测中</span>
                 <span id="cursorInstallState">正在定位 resources/app...</span>
-                <span class="adapter-state">适配器 v0.3.7</span>
+                <span class="adapter-state">适配器 v0.3.8</span>
                 <span id="cursorCompatibility" class="compatibility-state">正在检测新版本兼容性</span>
               </div>
               <button class="primary-button configure-button" data-open-app="cursor">配置汉化 <span>→</span></button>
@@ -282,6 +286,103 @@
             </article>
           </section>
 
+          <section id="extensions" class="extension-section scroll-anchor" aria-busy="false">
+            <div class="extension-hero">
+              <div>
+                <span class="extension-kicker">MCP · SKILLS · PROMPTS · MARKET</span>
+                <h2>Cursor 与 Claude Code 扩展管理</h2>
+                <p>统一维护 MCP, Agent Skill 和提示词规则, 浏览精选市场, 查看来源仓库并检查更新. 密钥始终在 Rust 后端脱敏处理.</p>
+              </div>
+              <button id="refreshExtensionsButton" class="secondary-button"><span>↻</span>刷新配置</button>
+            </div>
+
+            <div class="extension-toolbar">
+              <div class="extension-segment" aria-label="目标应用">
+                <button class="active" data-extension-target="cursor"><span class="extension-target-mark cursor">C</span>Cursor</button>
+                <button data-extension-target="claude-code"><span class="extension-target-mark claude">AI</span>Claude Code</button>
+              </div>
+              <div class="extension-segment compact" aria-label="配置范围">
+                <button class="active" data-extension-scope="user">用户级</button>
+                <button data-extension-scope="project">项目级</button>
+              </div>
+              <div id="extensionWorkspaceControl" class="extension-workspace-control hidden">
+                <input id="extensionWorkspacePath" type="text" readonly placeholder="请先选择工作区" />
+                <button id="chooseExtensionWorkspaceButton" class="secondary-button">选择工作区</button>
+              </div>
+            </div>
+
+            <div id="extensionActivityBanner" class="extension-activity-banner hidden" role="status" aria-live="polite">
+              <span class="extension-activity-spinner" aria-hidden="true">↻</span>
+              <div>
+                <strong id="extensionActivityTitle">正在处理扩展配置</strong>
+                <small id="extensionActivityDetail">请稍候, 完成后会自动刷新当前状态.</small>
+              </div>
+            </div>
+
+            <div class="extension-summary-grid">
+              <article><span>MCP 已启用</span><strong id="extensionMcpCount">0</strong><small>个服务</small></article>
+              <article><span>Skill 已启用</span><strong id="extensionSkillCount">0</strong><small>个自定义</small></article>
+              <article><span>提示词已启用</span><strong id="extensionPromptCount">0</strong><small>条规则</small></article>
+              <article class="extension-path-card"><span>当前配置</span><strong id="extensionConfigPath">正在读取...</strong><small id="extensionScopeNote">用户级配置</small></article>
+            </div>
+
+            <div class="extension-content-card">
+              <div class="extension-tabs" role="tablist">
+                <button id="extensionMcpTab" class="active" data-extension-tab="mcp" role="tab" aria-selected="true" aria-controls="extensionMcpPanel">MCP 服务</button>
+                <button id="extensionSkillTab" data-extension-tab="skill" role="tab" aria-selected="false" aria-controls="extensionSkillPanel" tabindex="-1">Agent Skills</button>
+                <button id="extensionPromptTab" data-extension-tab="prompt" role="tab" aria-selected="false" aria-controls="extensionPromptPanel" tabindex="-1">提示词</button>
+                <button id="extensionMarketTab" data-extension-tab="market" role="tab" aria-selected="false" aria-controls="extensionMarketPanel" tabindex="-1">扩展市场</button>
+              </div>
+
+              <section id="extensionMcpPanel" class="extension-panel" role="tabpanel" aria-labelledby="extensionMcpTab">
+                <div class="extension-panel-heading">
+                  <div><h3>MCP 服务</h3><p>支持 stdio、HTTP 和 SSE. 已保存的环境变量与请求头不会返回前端.</p></div>
+                  <div class="extension-heading-actions">
+                    <button class="text-button" data-open-extension-location="mcp">打开配置目录</button>
+                    <button id="addMcpButton" class="primary-button">添加 MCP</button>
+                  </div>
+                </div>
+                <div id="extensionMcpState" class="extension-empty-state" role="status" aria-live="polite">正在读取 MCP 配置...</div>
+                <div id="extensionMcpList" class="extension-item-grid" aria-live="polite"></div>
+              </section>
+
+              <section id="extensionSkillPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionSkillTab">
+                <div class="extension-panel-heading">
+                  <div><h3>Agent Skills</h3><p>管理 SKILL.md 与完整 Skill 目录. Cursor 内置 Skill 仅展示, 不允许修改.</p></div>
+                  <div class="extension-heading-actions">
+                    <button class="text-button" data-open-extension-location="skill">打开 Skill 目录</button>
+                    <button id="addSkillButton" class="primary-button">新建 Skill</button>
+                  </div>
+                </div>
+                <div id="extensionSkillState" class="extension-empty-state" role="status" aria-live="polite">正在扫描 Skill...</div>
+                <div id="extensionSkillList" class="extension-item-grid skill-grid" aria-live="polite"></div>
+              </section>
+
+              <section id="extensionPromptPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionPromptTab">
+                <div class="extension-panel-heading">
+                  <div><h3>提示词规则</h3><p id="extensionPromptDescription">Cursor 项目规则使用 `.cursor/rules/*.mdc`, Claude Code 使用 `.claude/rules/*.md`.</p></div>
+                  <div class="extension-heading-actions">
+                    <button class="text-button" data-open-extension-location="prompt">打开提示词目录</button>
+                    <button id="addPromptButton" class="primary-button">新建提示词</button>
+                  </div>
+                </div>
+                <div id="extensionPromptState" class="extension-empty-state" role="status" aria-live="polite">正在扫描提示词...</div>
+                <div id="extensionPromptList" class="extension-item-grid" aria-live="polite"></div>
+              </section>
+
+              <section id="extensionMarketPanel" class="extension-panel hidden" role="tabpanel" aria-labelledby="extensionMarketTab">
+                <div class="extension-panel-heading">
+                  <div><h3>MCP 与 Skill 市场</h3><p>精选 GitHub 开源项目. 安装时记录仓库和提交版本, 后续可检查并一键更新.</p></div>
+                  <div class="extension-heading-actions">
+                    <button id="refreshMarketButton" class="secondary-button">检查市场更新</button>
+                  </div>
+                </div>
+                <div id="extensionMarketState" class="extension-empty-state" role="status" aria-live="polite">打开市场后检查 GitHub 最新版本...</div>
+                <div id="extensionMarketList" class="extension-item-grid market-grid" aria-live="polite"></div>
+              </section>
+            </div>
+          </section>
+
           <section id="logs" class="activity-panel scroll-anchor">
             <div class="activity-header">
               <div>
@@ -308,7 +409,7 @@
               </div>
               <div class="about-hero-emblem" aria-hidden="true">
                 <strong>译</strong>
-                <span class="about-version-badge">v0.3.7</span>
+                <span class="about-version-badge">v0.3.8</span>
               </div>
             </div>
 
@@ -339,7 +440,7 @@
                   <span id="updateState" class="pill neutral">正在检查</span>
                 </div>
                 <div class="update-version-facts">
-                  <span>当前版本<strong id="updateCurrentVersion">v0.3.7</strong></span>
+                  <span>当前版本<strong id="updateCurrentVersion">v0.3.8</strong></span>
                   <span>最新版本<strong id="updateLatestVersion">--</strong></span>
                 </div>
                 <p id="updateMessage" class="update-message">正在连接 GitHub 检查正式发行版...</p>
@@ -381,6 +482,7 @@
                   <li>本项目是第三方开源工具, 与 Cursor、Anthropic 及其关联公司无官方关系.</li>
                   <li>汉化会修改本机应用资源, 安装前必须完成对应版本备份和 SHA256 校验.</li>
                   <li>Cursor 用量监控只向 Cursor 自有接口查询数据, 登录令牌不返回前端、不写日志、不落盘.</li>
+                  <li>MCP 密钥、环境变量和请求头只在 Rust 后端处理, 前端仅显示脱敏字段, 修改前自动备份配置.</li>
                   <li>更新检查只读取 GitHub 正式发行版信息, 不自动下载、不静默安装、不强制更新.</li>
                   <li>执行安装或恢复前请保存工作, 工作台会自动退出目标应用并确认进程完全结束.</li>
                 </ul>
@@ -437,7 +539,7 @@
             <div class="progress-label"><span id="progressText">准备中...</span><strong id="progressValue">0%</strong></div>
             <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
           </div>
-          <p id="operationMessage" class="operation-message"></p>
+          <p id="operationMessage" class="operation-message" role="status" aria-live="polite"></p>
         </div>
         <div class="modal-footer action-footer">
           <button id="previewButton" class="secondary-button">安全预检</button>
@@ -445,6 +547,67 @@
           <button id="restoreButton" class="danger-button">恢复原版</button>
           <button id="installButton" class="primary-button">安装汉化</button>
         </div>
+      </section>
+    </div>
+
+    <div id="mcpEditorBackdrop" class="modal-backdrop hidden">
+      <section class="modal extension-editor-modal" role="dialog" aria-modal="true" aria-labelledby="mcpEditorTitle">
+        <div class="modal-header">
+          <div class="extension-editor-icon">M</div>
+          <div><p>MCP SERVER</p><h2 id="mcpEditorTitle">添加 MCP 服务</h2></div>
+          <button id="mcpEditorCloseButton" class="modal-close" aria-label="关闭 MCP 编辑器">×</button>
+        </div>
+        <div class="extension-editor-body">
+          <input id="mcpOriginalName" type="hidden" />
+          <div class="extension-form-grid">
+            <label><span>服务名称</span><input id="mcpNameInput" type="text" placeholder="例如 github" maxlength="80" /></label>
+            <label><span>传输类型</span><select id="mcpTransportSelect"><option value="stdio">stdio</option><option value="http">HTTP</option><option value="sse">SSE</option></select></label>
+          </div>
+          <label id="mcpCommandField" class="extension-field"><span>启动命令</span><input id="mcpCommandInput" type="text" placeholder="例如 npx" /></label>
+          <label id="mcpUrlField" class="extension-field hidden"><span>服务 URL</span><input id="mcpUrlInput" type="url" placeholder="https://example.com/mcp" /></label>
+          <label id="mcpArgsField" class="extension-field"><span>命令参数, 每行一个</span><textarea id="mcpArgsInput" rows="4" placeholder="-y&#10;@modelcontextprotocol/server-filesystem"></textarea></label>
+          <label id="mcpEnvField" class="extension-field"><span>环境变量, 每行 KEY=VALUE</span><textarea id="mcpEnvInput" rows="4" placeholder="API_KEY=...&#10;ROOT_PATH=D:\workspace"></textarea><small>编辑已有服务时, `••••••` 表示保留原值. 删除整行表示删除该字段.</small></label>
+          <label id="mcpHeadersField" class="extension-field hidden"><span>HTTP 请求头, 每行 KEY=VALUE</span><textarea id="mcpHeadersInput" rows="4" placeholder="Authorization=Bearer ..."></textarea><small>敏感请求头保存后仅显示字段名和脱敏占位符.</small></label>
+          <label class="extension-enabled-row"><input id="mcpEnabledCheckbox" type="checkbox" checked /><span>保存后立即启用</span></label>
+            <p id="mcpEditorMessage" class="operation-message" role="status" aria-live="polite"></p>
+        </div>
+        <div class="modal-footer"><button id="mcpEditorCancelButton" class="secondary-button">取消</button><button id="mcpEditorSaveButton" class="primary-button">保存 MCP</button></div>
+      </section>
+    </div>
+
+    <div id="skillEditorBackdrop" class="modal-backdrop hidden">
+      <section class="modal extension-editor-modal skill-editor-modal" role="dialog" aria-modal="true" aria-labelledby="skillEditorTitle">
+        <div class="modal-header">
+          <div class="extension-editor-icon skill">S</div>
+          <div><p>AGENT SKILL</p><h2 id="skillEditorTitle">新建 Skill</h2></div>
+          <button id="skillEditorCloseButton" class="modal-close" aria-label="关闭 Skill 编辑器">×</button>
+        </div>
+        <div class="extension-editor-body">
+          <input id="skillOriginalName" type="hidden" />
+          <label class="extension-field"><span>目录名称</span><input id="skillNameInput" type="text" placeholder="例如 code-review" maxlength="80" /></label>
+          <label class="extension-field"><span>SKILL.md 内容</span><textarea id="skillContentInput" class="skill-content-editor" rows="16" spellcheck="false" placeholder="---&#10;name: code-review&#10;description: 当用户要求代码审查时使用&#10;---&#10;&#10;# Instructions"></textarea></label>
+          <label class="extension-enabled-row"><input id="skillEnabledCheckbox" type="checkbox" checked /><span>保存后立即启用</span></label>
+            <p id="skillEditorMessage" class="operation-message" role="status" aria-live="polite"></p>
+        </div>
+        <div class="modal-footer"><button id="skillEditorCancelButton" class="secondary-button">取消</button><button id="skillEditorSaveButton" class="primary-button">保存 Skill</button></div>
+      </section>
+    </div>
+
+    <div id="promptEditorBackdrop" class="modal-backdrop hidden">
+      <section class="modal extension-editor-modal skill-editor-modal" role="dialog" aria-modal="true" aria-labelledby="promptEditorTitle">
+        <div class="modal-header">
+          <div class="extension-editor-icon prompt">P</div>
+          <div><p>PROMPT RULE</p><h2 id="promptEditorTitle">新建提示词</h2></div>
+          <button id="promptEditorCloseButton" class="modal-close" aria-label="关闭提示词编辑器">×</button>
+        </div>
+        <div class="extension-editor-body">
+          <input id="promptOriginalName" type="hidden" />
+          <label class="extension-field"><span>规则名称</span><input id="promptNameInput" type="text" placeholder="例如 engineering-quality" maxlength="80" /></label>
+          <label class="extension-field"><span>提示词内容</span><textarea id="promptContentInput" class="skill-content-editor" rows="16" spellcheck="false" placeholder="---&#10;name: engineering-quality&#10;description: 工程质量规则&#10;---&#10;&#10;处理任务时先检查现状..."></textarea></label>
+          <label class="extension-enabled-row"><input id="promptEnabledCheckbox" type="checkbox" checked /><span>保存后立即启用</span></label>
+            <p id="promptEditorMessage" class="operation-message" role="status" aria-live="polite"></p>
+        </div>
+        <div class="modal-footer"><button id="promptEditorCancelButton" class="secondary-button">取消</button><button id="promptEditorSaveButton" class="primary-button">保存提示词</button></div>
       </section>
     </div>
 
@@ -477,6 +640,7 @@
                 <li>工作台不包含遥测、行为分析或广告组件, 不上传个人文件、备份内容和操作日志.</li>
                 <li>软件检测、备份、校验和恢复均在本机执行. 备份只保存在界面显示的本地目录.</li>
                 <li>Cursor 用量监控只读本机登录状态. 令牌仅在 Rust 后端内存中使用, 只发送给 Cursor 自有接口, 不返回前端、不写日志、不落盘.</li>
+                <li>扩展管理只读取用户选择范围内的 MCP 与 Skill. MCP 密钥和请求头不返回前端, 配置修改前会创建本地备份.</li>
                 <li>版本检查只向 GitHub 请求公开发行版信息, 不携带 Cursor 或 Claude 账号信息, 不自动下载、不静默安装、不强制更新.</li>
                 <li>GitHub 头像仅在打开关于页时按需加载. 不同意本说明可以直接退出, 工作台不会继续初始化.</li>
               </ul>
@@ -497,7 +661,7 @@
       </section>
     </div>
 
-    <div id="toast" class="toast hidden"><span id="toastIcon">✓</span><p></p></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"><span id="toastIcon">✓</span><p></p></div>
     <script src="app.js"></script>
   </body>
 </html>

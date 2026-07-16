@@ -1,0 +1,80 @@
+[
+  {
+    "id": "playwright-mcp",
+    "kind": "mcp",
+    "targets": ["cursor", "claude-code"],
+    "name": "playwright",
+    "title": "Playwright MCP",
+    "description": "让 Agent 通过 Playwright 操作浏览器并读取页面结构.",
+    "repository": "https://github.com/microsoft/playwright-mcp",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@playwright/mcp@latest"]
+  },
+  {
+    "id": "context7-mcp",
+    "kind": "mcp",
+    "targets": ["cursor", "claude-code"],
+    "name": "context7",
+    "title": "Context7 MCP",
+    "description": "按版本查询最新的开源库文档和代码示例.",
+    "repository": "https://github.com/upstash/context7",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp@latest"]
+  },
+  {
+    "id": "filesystem-mcp",
+    "kind": "mcp",
+    "targets": ["cursor", "claude-code"],
+    "name": "filesystem",
+    "title": "Filesystem MCP",
+    "description": "在当前工作区范围内提供受控文件读写能力.",
+    "repository": "https://github.com/modelcontextprotocol/servers",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "${workspace}"]
+  },
+  {
+    "id": "anthropic-frontend-design",
+    "kind": "skill",
+    "targets": ["cursor", "claude-code"],
+    "name": "frontend-design",
+    "title": "Frontend Design",
+    "description": "Anthropic 官方前端设计 Skill, 用于生成更有辨识度的界面.",
+    "repository": "https://github.com/anthropics/skills",
+    "sourcePath": "skills/frontend-design",
+    "rawUrl": "https://raw.githubusercontent.com/anthropics/skills/main/skills/frontend-design/SKILL.md"
+  },
+  {
+    "id": "anthropic-skill-creator",
+    "kind": "skill",
+    "targets": ["cursor", "claude-code"],
+    "name": "skill-creator",
+    "title": "Skill Creator",
+    "description": "Anthropic 官方 Skill 创建与维护指南.",
+    "repository": "https://github.com/anthropics/skills",
+    "sourcePath": "skills/skill-creator",
+    "rawUrl": "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md"
+  },
+  {
+    "id": "cursor-code-review-prompt",
+    "kind": "prompt",
+    "targets": ["cursor"],
+    "name": "code-review",
+    "title": "Cursor 代码审查规则",
+    "description": "要求 Cursor 优先定位根因, 保留用户改动并完成针对性验证.",
+    "repository": "https://github.com/svipm/cursor-i18n-zh",
+    "content": "始终先确认修改目标和边界. 审查代码时优先报告可复现的正确性, 安全性和数据损坏问题. 修改时保留无关用户改动, 完成与改动直接相关的测试, 并明确说明未验证部分."
+  },
+  {
+    "id": "claude-code-engineering-prompt",
+    "kind": "prompt",
+    "targets": ["claude-code"],
+    "name": "engineering-quality",
+    "title": "Claude Code 工程质量规则",
+    "description": "为 Claude Code 增加根因分析, 最小边界和验证闭环约束.",
+    "repository": "https://github.com/svipm/cursor-i18n-zh",
+    "content": "处理工程任务时先检查仓库现状和约束. 直接修复根因, 不使用未经要求的降级方案. 不覆盖无关改动. 修改后运行直接相关的测试, 格式检查和差异检查, 只有证据充分时才声明完成."
+  }
+]

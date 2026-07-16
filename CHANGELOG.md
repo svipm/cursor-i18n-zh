@@ -2,6 +2,56 @@
 
 本文件记录正式发布版本. `v0.3.2` 至 `v0.3.5` 是 `v0.3.6` 发布前的内部迭代, 未单独创建 GitHub Release.
 
+## [未发布]
+
+### 新增
+
+- 新增 Cursor 与 Claude Code 扩展管理页, 支持用户级和项目级 MCP 与 Agent Skills.
+- MCP 支持 stdio、HTTP 和 SSE, 可以添加、编辑、启用、停用和删除.
+- Skill 支持创建、编辑、启停和安全删除, Cursor 内置与 Claude 兼容 Skill 只读展示.
+- 新增工作区目录选择器, 项目级配置只作用于用户明确选择的工作区.
+- 新增 Cursor 项目规则与 Claude Code 项目/个人提示词管理, 分别维护 `.cursor/rules/*.mdc` 和 `.claude/rules/*.md`.
+- Cursor 全局 User Rules 没有公开文件格式, 用户级界面会引导到 `Customize > Rules`, 不写入 Cursor 私有数据库.
+- 新增精选 MCP, Skill 与提示词市场, 支持 GitHub 来源展示, 最新提交检查和市场项目一键更新.
+- 已安装项目可以直接打开对应 GitHub 仓库. 非市场项目缺少安装提交记录时显示“版本未知”.
+- 新增 macOS Cursor 与 Claude Desktop 定位, 进程退出, 管理员启动, 用户目录保留和应用 ad-hoc 重签名.
+- 新增 `macos-14` 原生构建任务, 生成 `.app.zip`, DMG 和独立 SHA256 清单.
+- macOS 改为 Universal Binary, 同时覆盖 Apple Silicon 和 Intel; DMG 包含应用与 Applications 快捷入口.
+- macOS 工作流新增手动触发, Universal 双架构, Info.plist, ZIP, 签名和 DMG 挂载结构强制校验.
+- macOS `.app` 补齐 Cursor 引擎依赖, 第三方许可证和 Claude 翻译资源来源声明, 并在打包时强制校验.
+- 支持可选 Developer ID 签名和 Apple notarization Secrets, 未配置证书时保留 ad-hoc 测试构建.
+- Skill 市场改为按固定 GitHub 提交下载完整目录, 不再只安装单个 `SKILL.md`.
+- 扩展页新增统一操作状态条和按钮忙碌反馈, 长时间检查、安装和更新过程不再缺少可见反馈.
+- 提升小字号文本可读性, 增加键盘焦点样式, Esc 关闭弹窗, Tab 方向键切换和完整减少动态效果支持.
+
+### 安全
+
+- MCP 环境变量、HTTP 请求头和 URL 凭据仅在 Rust 后端处理, 前端只显示脱敏占位符.
+- MCP 修改前自动备份原 JSON, Skill 删除改为移动到工作台回收目录.
+- 根据 Cursor 和 Claude Code 官方格式分别生成 MCP 配置, 保留已有未知字段和 OAuth 配置.
+- 市场只允许经过格式校验的 GitHub 仓库首页和 GitHub Raw Skill 下载地址.
+- Skill 下载限制为 128 个文件, 单文件 2 MB, 总大小 8 MB, 拒绝符号链接和越界路径.
+- MCP 市场更新保留已有环境变量, 请求头, 启停状态和脱敏密钥, 不因模板更新清空用户配置.
+- Skill 与提示词市场更新保留用户原有启停状态, 不会在更新时擅自重新启用.
+- MCP 来源元数据迁移到工作台独立 sidecar 注册表, 不向官方 MCP 配置注入未知字段.
+- macOS 管理员模式保留原用户 HOME, UID 和 GID, 写入用户配置后恢复原用户所有权.
+
+### 修复
+
+- 修复 Claude Desktop 嵌套资源路径使用正斜杠时, `takeown.exe` 无法找到文件的问题.
+- 权限命令失败时返回退出码和 Windows 原始错误, 不再只显示笼统失败提示.
+- 修复 Cursor Node.js 引擎只定位 Windows 安装目录和只会结束 `Cursor.exe` 的平台限制.
+- 修复 macOS GUI 环境无法发现 Homebrew, NVM, Volta, asdf, mise 和 fnm Node.js, 以及执行时仍固定调用 `node` 的问题.
+- 修复 macOS 修改 Electron 应用后只执行单次 deep 签名, 可能导致嵌套 Framework entitlement 或 Claude 虚拟化权限丢失的问题.
+- 修复非市场已安装项目在 GitHub 检查失败时误显示“已是最新”的问题.
+- 修复 Cursor 用量数据库和工作台数据目录只识别 Windows 环境变量的问题.
+
+### 验证
+
+- Windows Node.js 测试 97 项通过, Rust 测试 37 项通过, 5 项实网测试在默认套件中按约定忽略.
+- 5 项实网测试已单独全部通过, 覆盖当前用户扩展配置扫描, GitHub 项目与版本检查, 市场提交检查和完整 Skill 目录下载.
+- Windows 无法链接 Apple Objective-C 运行时, macOS 最终编译, 签名和 DMG 验证交由 `macos-14` 原生工作流执行.
+
 ## [0.3.7] - 2026-07-16
 
 ### 修复

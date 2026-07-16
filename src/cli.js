@@ -107,8 +107,11 @@ function backupGuardTranslations() {
 }
 
 function clearClpCache() {
-  const clp = path.join(process.env.APPDATA || '', 'Cursor', 'clp');
-  if (process.env.APPDATA && fs.existsSync(clp)) {
+  const base = process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Application Support')
+    : process.env.APPDATA;
+  const clp = base ? path.join(base, 'Cursor', 'clp') : '';
+  if (clp && fs.existsSync(clp)) {
     fs.rmSync(clp, { recursive: true, force: true });
     return true;
   }
@@ -138,7 +141,14 @@ function sleepSync(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-function cursorProcessRunning(spawnSync = cp.spawnSync) {
+function cursorProcessRunning(spawnSync = cp.spawnSync, platform = process.platform) {
+  if (platform === 'darwin') {
+    const check = spawnSync('pgrep', ['-x', 'Cursor'], {
+      encoding: 'utf8', timeout: 10000,
+    });
+    if (check.error) throw new Error(`无法确认 Cursor 是否已退出: ${check.error.message}`);
+    return check.status === 0 && Boolean((check.stdout || '').trim());
+  }
   const check = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq Cursor.exe', '/NH', '/FO', 'CSV'], {
     encoding: 'utf8',
     windowsHide: true,
@@ -151,7 +161,8 @@ function cursorProcessRunning(spawnSync = cp.spawnSync) {
 }
 
 function stopCursor(options = {}) {
-  if (process.platform !== 'win32' && !options.force) return;
+  const platform = options.platform || process.platform;
+  if (!['win32', 'darwin'].includes(platform) && !options.force) return;
   const spawnSync = options.spawnSync || cp.spawnSync;
   const sleep = options.sleep || sleepSync;
   const report = options.log || log;
@@ -160,20 +171,22 @@ function stopCursor(options = {}) {
   const pollIntervalMs = options.pollIntervalMs ?? 250;
   let lastDetail = '';
 
-  if (!cursorProcessRunning(spawnSync)) return;
+  if (!cursorProcessRunning(spawnSync, platform)) return;
   report('正在自动退出 Cursor 及其全部子进程...');
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const killed = spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/T', '/F'], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 20000,
-    });
+    const killed = platform === 'darwin'
+      ? spawnSync(attempt === 1 ? 'osascript' : 'pkill', attempt === 1
+        ? ['-e', 'tell application "Cursor" to quit']
+        : ['-9', '-x', 'Cursor'], { encoding: 'utf8', timeout: 20000 })
+      : spawnSync('taskkill.exe', ['/IM', 'Cursor.exe', '/T', '/F'], {
+        encoding: 'utf8', windowsHide: true, timeout: 20000,
+      });
     lastDetail = ((killed.stdout || '') + (killed.stderr || '')).trim();
     if (killed.error) lastDetail = killed.error.message;
 
     for (let poll = 0; poll < pollsPerAttempt; poll++) {
       sleep(pollIntervalMs);
-      if (!cursorProcessRunning(spawnSync)) {
+      if (!cursorProcessRunning(spawnSync, platform)) {
         report('Cursor 及其全部子进程已退出.');
         return;
       }
@@ -182,7 +195,7 @@ function stopCursor(options = {}) {
   }
 
   const detail = lastDetail ? ` 最后结果: ${lastDetail}` : '';
-  throw new Error(`已自动强制结束 Cursor 进程树, 但 Cursor.exe 仍在运行. 请使用管理员身份重新启动汉化工作台后重试.${detail}`);
+  throw new Error(`已自动强制结束 Cursor 进程树, 但 Cursor 仍在运行. 请使用管理员身份重新启动汉化工作台后重试.${detail}`);
 }
 
 function invocationUserState(profile) {

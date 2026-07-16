@@ -2,6 +2,8 @@ use super::{
     hidden_command, ActionRequest, AppStatus, BackupRecord, LocaleOption, NodeRuntimeStatus,
     OperationResult, ProgressSink,
 };
+#[cfg(target_os = "macos")]
+use super::{local_app_data, resign_macos_app};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -12,7 +14,7 @@ use std::process::Stdio;
 use std::sync::mpsc;
 use std::thread;
 
-const ADAPTER_VERSION: &str = "0.3.7";
+const ADAPTER_VERSION: &str = "0.3.8";
 const MIN_NODE_MAJOR: u32 = 18;
 
 struct BackupDetails {
@@ -50,7 +52,7 @@ pub fn detect() -> AppStatus {
     let backup = match (&root, &version, &node) {
         (Some(root), Some(version), Some(_)) => inspect_backup(root, version),
         (Some(root), Some(version), None) => {
-            let path = root.join("backup").join(version);
+            let path = backup_root(root).join(version);
             BackupDetails {
                 available: false,
                 files: backup_file_count(&path),
@@ -70,8 +72,7 @@ pub fn detect() -> AppStatus {
         },
     };
     let localized = match (&root, &version) {
-        (Some(root), Some(version)) => root
-            .join("backup")
+        (Some(root), Some(version)) => backup_root(root)
             .join(version)
             .join("install-state.json")
             .is_file(),
@@ -205,7 +206,12 @@ pub fn run(request: &ActionRequest, sink: ProgressSink) -> Result<OperationResul
         other => return Err(format!("Cursor 不支持操作: {other}")),
     };
     let root = engine_root().ok_or_else(|| "未找到 cursor-i18n-zh 引擎目录".to_string())?;
-    let node = node_version().ok_or_else(|| "未找到 Node.js 18 或更高版本".to_string())?;
+    let node_executable =
+        node_executable_path_buf().ok_or_else(|| "未找到 Node.js 18 或更高版本".to_string())?;
+    let node = node_version_from_executable(&node_executable)
+        .filter(|(_, major)| *major >= MIN_NODE_MAJOR)
+        .map(|(version, _)| version)
+        .ok_or_else(|| "未找到 Node.js 18 或更高版本".to_string())?;
     if request.action == "restore" {
         let current_version = cursor_app_dir()
             .as_deref()
@@ -233,10 +239,11 @@ pub fn run(request: &ActionRequest, sink: ProgressSink) -> Result<OperationResul
     }
 
     let cli = root.join("src").join("cli.js");
-    let mut child = hidden_command("node")
+    let mut child = hidden_command(&node_executable.to_string_lossy())
         .arg(cli)
         .arg(command)
         .args(["--locale", &request.locale])
+        .env("CURSOR_I18N_BACKUP_ROOT", backup_root(&root))
         .current_dir(&root)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -283,6 +290,12 @@ pub fn run(request: &ActionRequest, sink: ProgressSink) -> Result<OperationResul
         ));
     }
 
+    if matches!(request.action.as_str(), "install" | "restore") {
+        if let Some(app_dir) = cursor_app_dir() {
+            finalize_platform_install(&app_dir)?;
+        }
+    }
+
     sink.emit(100, "DONE", "Cursor 操作已完成.");
     let title = match request.action.as_str() {
         "preview" => "Cursor 预检通过",
@@ -295,7 +308,7 @@ pub fn run(request: &ActionRequest, sink: ProgressSink) -> Result<OperationResul
             .as_deref()
             .and_then(read_version)
             .map(|version| {
-                root.join("backup")
+                backup_root(&root)
                     .join(version)
                     .to_string_lossy()
                     .into_owned()
@@ -318,7 +331,7 @@ pub fn list_backups() -> Vec<BackupRecord> {
     let Some(root) = engine_root() else {
         return Vec::new();
     };
-    let backup_root = root.join("backup");
+    let backup_root = backup_root(&root);
     let current_version = cursor_app_dir().as_deref().and_then(read_version);
     let Ok(entries) = fs::read_dir(&backup_root) else {
         return Vec::new();
@@ -444,7 +457,7 @@ fn sha256_file_base64(path: &Path) -> Result<String, String> {
 }
 
 fn inspect_backup(root: &Path, version: &str) -> BackupDetails {
-    let path = root.join("backup").join(version);
+    let path = backup_root(root).join(version);
     let display_path = Some(path.to_string_lossy().into_owned());
     let files = backup_file_count(&path);
     if !path.is_dir() {
@@ -503,6 +516,7 @@ fn run_cli_quiet(root: &Path, command: &str, locale: &str) -> Result<String, Str
         .arg(root.join("src").join("cli.js"))
         .arg(command)
         .args(["--locale", locale])
+        .env("CURSOR_I18N_BACKUP_ROOT", backup_root(root))
         .current_dir(root)
         .output()
         .map_err(|error| format!("无法启动 Cursor 汉化引擎: {error}"))?;
@@ -538,6 +552,10 @@ pub fn engine_root() -> Option<PathBuf> {
 
     let mut starts = Vec::new();
     if let Ok(path) = std::env::current_exe() {
+        #[cfg(target_os = "macos")]
+        if let Some(macos_dir) = path.parent() {
+            starts.push(macos_dir.join("../Resources/engine"));
+        }
         starts.push(path);
     }
     if let Ok(path) = std::env::current_dir() {
@@ -553,49 +571,38 @@ pub fn engine_root() -> Option<PathBuf> {
     None
 }
 
-pub fn node_version() -> Option<String> {
-    let status = node_runtime_status();
-    if status.compatible {
-        status.version
-    } else {
-        None
+fn backup_root(engine_root: &Path) -> PathBuf {
+    if let Some(path) = std::env::var_os("CURSOR_I18N_BACKUP_ROOT").map(PathBuf::from) {
+        return path;
     }
+    #[cfg(target_os = "macos")]
+    {
+        return local_app_data().join("backups/cursor");
+    }
+    #[cfg(not(target_os = "macos"))]
+    engine_root.join("backup")
 }
 
 pub fn node_runtime_status() -> NodeRuntimeStatus {
-    let executable = node_executable_path();
-    let Ok(output) = hidden_command("node").arg("--version").output() else {
+    let Some(node_executable) = node_executable_path_buf() else {
         return NodeRuntimeStatus {
             installed: false,
             compatible: false,
             version: None,
-            executable,
+            executable: None,
             required_version: ">=18",
             message: "未检测到 Node.js. Cursor 汉化需要 Node.js 18 或更高版本".to_string(),
         };
     };
-    if !output.status.success() {
-        return NodeRuntimeStatus {
-            installed: false,
-            compatible: false,
-            version: None,
-            executable,
-            required_version: ">=18",
-            message: "Node.js 命令无法正常运行. Cursor 汉化需要 Node.js 18 或更高版本".to_string(),
-        };
-    }
-
-    let raw = String::from_utf8_lossy(&output.stdout);
-    let parsed = parse_node_version(&raw);
-    let Some((version, major)) = parsed else {
+    let executable = Some(node_executable.to_string_lossy().into_owned());
+    let Some((version, major)) = node_version_from_executable(&node_executable) else {
         return NodeRuntimeStatus {
             installed: true,
             compatible: false,
             version: None,
             executable,
             required_version: ">=18",
-            message: "已检测到 Node.js, 但无法识别版本. Cursor 汉化需要 Node.js 18 或更高版本"
-                .to_string(),
+            message: "已找到 Node.js, 但命令无法运行或版本无法识别. Cursor 汉化需要 Node.js 18 或更高版本".to_string(),
         };
     };
     let compatible = major >= MIN_NODE_MAJOR;
@@ -619,16 +626,89 @@ fn parse_node_version(raw: &str) -> Option<(String, u32)> {
     Some((version, major))
 }
 
-fn node_executable_path() -> Option<String> {
-    let output = hidden_command("where.exe").arg("node").output().ok()?;
+fn node_version_from_executable(executable: &Path) -> Option<(String, u32)> {
+    let output = hidden_command(&executable.to_string_lossy())
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(str::to_string)
+    parse_node_version(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn node_executable_path_buf() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = std::env::var_os("NODE_BINARY").map(PathBuf::from) {
+        candidates.push(path);
+    }
+
+    #[cfg(target_os = "windows")]
+    let locator = hidden_command("where.exe").arg("node").output().ok();
+    #[cfg(not(target_os = "windows"))]
+    let locator = hidden_command("which").arg("node").output().ok();
+    if let Some(output) = locator.filter(|output| output.status.success()) {
+        candidates.extend(
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(PathBuf::from),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    candidates.extend(macos_node_candidates());
+
+    let mut fallback = None;
+    for path in candidates {
+        if !path.is_file() {
+            continue;
+        }
+        let Some((_, major)) = node_version_from_executable(&path) else {
+            continue;
+        };
+        if major >= MIN_NODE_MAJOR {
+            return Some(path);
+        }
+        if fallback.is_none() {
+            fallback = Some(path);
+        }
+    }
+    fallback
+}
+
+#[cfg(target_os = "macos")]
+fn macos_node_candidates() -> Vec<PathBuf> {
+    let mut candidates = vec![
+        PathBuf::from("/opt/homebrew/bin/node"),
+        PathBuf::from("/usr/local/bin/node"),
+        PathBuf::from("/usr/local/opt/node/bin/node"),
+    ];
+    let Some(home) = std::env::var_os("I18N_WORKBENCH_USER_HOME")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+    else {
+        return candidates;
+    };
+    candidates.extend([
+        home.join(".volta/bin/node"),
+        home.join(".asdf/shims/node"),
+        home.join(".local/share/mise/shims/node"),
+        home.join(".local/share/fnm/aliases/default/bin/node"),
+    ]);
+    let nvm_versions = home.join(".nvm/versions/node");
+    if let Ok(entries) = fs::read_dir(nvm_versions) {
+        let mut versions = entries
+            .flatten()
+            .map(|entry| entry.path().join("bin/node"))
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        versions.sort();
+        versions.reverse();
+        candidates.extend(versions);
+    }
+    candidates
 }
 
 fn is_engine_root(path: &Path) -> bool {
@@ -650,6 +730,13 @@ fn cursor_app_dir() -> Option<PathBuf> {
         }
     }
 
+    cursor_app_candidates()
+        .into_iter()
+        .find(|path| is_cursor_app_dir(path))
+}
+
+#[cfg(target_os = "windows")]
+fn cursor_app_candidates() -> Vec<PathBuf> {
     let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     let program = std::env::var_os("ProgramFiles").map(PathBuf::from);
     let program_x86 = std::env::var_os("ProgramFiles(x86)").map(PathBuf::from);
@@ -660,12 +747,39 @@ fn cursor_app_dir() -> Option<PathBuf> {
     ]
     .into_iter()
     .flatten()
-    .find(|path| is_cursor_app_dir(path))
+    .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn cursor_app_candidates() -> Vec<PathBuf> {
+    let mut candidates = vec![PathBuf::from(
+        "/Applications/Cursor.app/Contents/Resources/app",
+    )];
+    if let Some(home) = std::env::var_os("I18N_WORKBENCH_USER_HOME")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+    {
+        candidates.push(home.join("Applications/Cursor.app/Contents/Resources/app"));
+    }
+    candidates
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn cursor_app_candidates() -> Vec<PathBuf> {
+    vec![
+        PathBuf::from("/usr/share/cursor/resources/app"),
+        PathBuf::from("/opt/Cursor/resources/app"),
+    ]
 }
 
 fn app_dir_from_exe(exe: &Path) -> Option<PathBuf> {
-    let path = exe.parent()?.join("resources").join("app");
-    is_cursor_app_dir(&path).then_some(path)
+    let parent = exe.parent()?;
+    let candidates = [
+        parent.join("resources").join("app"),
+        parent.join("../Resources/app"),
+        parent.join("../resources/app"),
+    ];
+    candidates.into_iter().find(|path| is_cursor_app_dir(path))
 }
 
 fn is_cursor_app_dir(path: &Path) -> bool {
@@ -676,6 +790,20 @@ fn read_version(app_dir: &Path) -> Option<String> {
     let raw = fs::read_to_string(app_dir.join("product.json")).ok()?;
     let product: Value = serde_json::from_str(&raw).ok()?;
     product.get("version")?.as_str().map(str::to_string)
+}
+
+#[cfg(target_os = "macos")]
+fn finalize_platform_install(app_dir: &Path) -> Result<(), String> {
+    let app = app_dir
+        .ancestors()
+        .find(|path| path.extension().and_then(|value| value.to_str()) == Some("app"))
+        .ok_or_else(|| format!("无法从 {} 定位 Cursor.app", app_dir.display()))?;
+    resign_macos_app(app, "Cursor.app", false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn finalize_platform_install(_app_dir: &Path) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(test)]

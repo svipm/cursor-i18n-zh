@@ -72,13 +72,39 @@ pub fn load_cursor_usage() -> Result<UsageOverview, String> {
 }
 
 fn cursor_state_db_path() -> PathBuf {
-    std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
+    cursor_user_data_root()
         .join("Cursor")
         .join("User")
         .join("globalStorage")
         .join("state.vscdb")
+}
+
+#[cfg(target_os = "windows")]
+fn cursor_user_data_root() -> PathBuf {
+    std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+#[cfg(target_os = "macos")]
+fn cursor_user_data_root() -> PathBuf {
+    std::env::var_os("I18N_WORKBENCH_USER_HOME")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .map(|home| home.join("Library/Application Support"))
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn cursor_user_data_root() -> PathBuf {
+    std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|home| home.join(".config"))
+        })
+        .unwrap_or_else(std::env::temp_dir)
 }
 
 fn read_cursor_credentials(path: &Path) -> Result<CursorCredentials, String> {

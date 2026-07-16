@@ -237,7 +237,8 @@ function formatBackupSourceIssues(issues, version) {
 
 // 备份布局: <项目>/backup/<版本>/files/<相对路径> + meta.json
 function backupDir(projectRoot, version) {
-  return path.join(projectRoot, 'backup', version);
+  const root = process.env.CURSOR_I18N_BACKUP_ROOT || path.join(projectRoot, 'backup');
+  return path.join(root, version);
 }
 
 function atomicWriteFile(dst, data, fileOps = fs) {
