@@ -386,7 +386,8 @@ test('Cursor compatibility workflow bounds and cleans silent installer execution
   assert.match(cursorCompatWorkflow, /Get-Content[^\n]+\$installerLog -Tail 160/);
   assert.match(cursorCompatWorkflow, /\[DateTime\]::UtcNow\.AddMinutes\(12\)/);
   assert.match(cursorCompatWorkflow, /candidate\.version[^\n]+release\.version/);
-  assert.match(cursorCompatWorkflow, /candidate\.commit[^\n]+release\.commit/);
+  assert.match(cursorCompatWorkflow, /candidate\.commit -match '\^\[0-9a-f\]\{40\}\$'/);
+  assert.match(cursorCompatWorkflow, /differs from signed installer product commit/);
   assert.match(cursorCompatWorkflow, /taskkill\.exe \/PID \$process\.Id \/T \/F/);
   assert.match(cursorCompatWorkflow, /needs\.compatibility\.result != 'success'/);
 });

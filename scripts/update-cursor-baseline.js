@@ -26,8 +26,12 @@ const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 if (!report.evaluation || !report.evaluation.passed) {
   throw new Error('兼容性报告未通过, 禁止更新稳定版基线');
 }
-if (report.cursor.version !== release.version || report.cursor.commit !== release.commit) {
-  throw new Error('兼容性报告与官方版本元数据不一致');
+if (report.cursor.version !== release.version) {
+  throw new Error('兼容性报告与官方版本号不一致');
+}
+const commitPattern = /^[0-9a-f]{40}$/;
+if (!commitPattern.test(release.commit) || !commitPattern.test(report.cursor.commit)) {
+  throw new Error('官方发行 commit 或安装包 product commit 无效');
 }
 
 const metrics = report.evaluation.metrics;
@@ -36,7 +40,8 @@ const record = {
   channel: release.channel,
   platform: release.platform,
   version: release.version,
-  commit: release.commit,
+  releaseCommit: release.commit,
+  commit: report.cursor.commit,
   validatedAt: report.generatedAt,
   metrics: {
     codeReplacements: metrics.codeReplacements,

@@ -193,6 +193,7 @@ GitHub 自动兼容流程:
 1. `cursor-compat.yml` 每 6 小时读取 Cursor 官方稳定版下载接口.
 2. 检测到 version 或 commit 变化后, 在隔离的 Windows Runner 临时目录中使用 Inno Setup 静默参数安装官方包. 安装阶段通过目标 version 和 commit 轮询完成状态, 限制 15 分钟并清理安装器进程树; 失败时保留安装日志证据, 不会因隐藏界面或派生进程长期阻塞.
 3. 校验安装包 Authenticode 签名, 实际安装版本和官方 commit, 然后执行完整 Node.js 测试及简繁双语言补丁预检.
+   下载 API commit 与已签名安装包的 `product.json` commit 会分别记录. 两者不一致时以安装包实际身份执行补丁验证, 仍以 API commit 判断后续发行版变化.
 4. 将代码替换量, 工作台入口数量, 账号用量入口和 Cursor NLS 命中量与上一兼容版本比较, 并导出新版本 UI 文案候选清单. 低于安全门限, 安装超时或任务取消时停止构建并自动创建 GitHub Issue.
 5. 全部通过后构建 EXE, 完整便携包和 SHA256 文件并上传为 Actions Artifact, 同时上传兼容性报告和文案扫描结果, 然后记录新的稳定版兼容基线.
 

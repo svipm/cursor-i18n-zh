@@ -140,7 +140,10 @@ jobs:
                     Write-Host "Detected installed Cursor identity: $identity"
                     $lastIdentity = $identity
                   }
-                  if ([string]$candidate.version -eq [string]$release.version -and [string]$candidate.commit -eq [string]$release.commit) {
+                  if ([string]$candidate.version -eq [string]$release.version -and [string]$candidate.commit -match '^[0-9a-f]{40}$') {
+                    if ([string]$candidate.commit -ne [string]$release.commit) {
+                      Write-Warning "Cursor API commit $($release.commit) differs from signed installer product commit $($candidate.commit). Both identities will be recorded."
+                    }
                     $installedProduct = $candidate
                     break
                   }
@@ -166,6 +169,7 @@ jobs:
           }
           "CURSOR_APP_DIR=$appDir" | Add-Content -LiteralPath $env:GITHUB_ENV
           "CURSOR_INSTALLER_SIGNER=$subject" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "CURSOR_INSTALLED_COMMIT=$($installedProduct.commit)" | Add-Content -LiteralPath $env:GITHUB_ENV
 
       - name: Run project tests
         run: npm test
@@ -239,6 +243,7 @@ jobs:
           ## Cursor ${{ needs.detect.outputs.version }} compatibility passed
 
           - Commit: `${{ needs.detect.outputs.commit }}`
+          - Installed product commit: `$env:CURSOR_INSTALLED_COMMIT`
           - Installer signer: `$env:CURSOR_INSTALLER_SIGNER`
           - Code replacements: `$($metrics.codeReplacements)`
           - Workbench bundles: `$($metrics.workbenchBundles)`

@@ -45,6 +45,7 @@ function main() {
     locale,
     baseline: {
       version: baseline.version,
+      releaseCommit: baseline.releaseCommit || baseline.commit,
       commit: baseline.commit,
       metrics: baseline.metrics,
       gates: baseline.gates,

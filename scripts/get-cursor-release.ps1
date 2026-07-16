@@ -58,7 +58,11 @@ $baselineCommit = ''
 if (Test-Path -LiteralPath $BaselineFile -PathType Leaf) {
   $baseline = Get-Content -LiteralPath $BaselineFile -Raw | ConvertFrom-Json
   $baselineVersion = [string]$baseline.version
-  $baselineCommit = [string]$baseline.commit
+  $baselineCommit = if ($baseline.PSObject.Properties.Name -contains 'releaseCommit') {
+    [string]$baseline.releaseCommit
+  } else {
+    [string]$baseline.commit
+  }
 }
 $changed = $Force.IsPresent -or $version -ne $baselineVersion -or $commit -ne $baselineCommit
 
