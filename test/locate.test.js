@@ -29,9 +29,27 @@ test('detects resources/app from common Cursor paths', () => {
     assert.equal(appDirFrom(root), app);
     assert.equal(appDirFrom(path.join(root, 'Cursor.exe')), app);
     assert.equal(appDirFrom(path.join(bin, 'cursor.cmd')), app);
+    assert.equal(appDirFrom(path.join(bin, 'cursor.cmd'), 'darwin'), app);
     assert.equal(appDirFrom(path.join(app, 'bin', 'cursor')), app);
     assert.equal(appDirFrom(`"${path.join(root, 'Cursor.exe')}" --open-url`), app);
     assert.equal(appDirFrom(`${path.join(root, 'Cursor.exe')},0`), app);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('detects a Cursor macOS app executable without confusing ordinary bin paths', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-i18n-macos-locate-'));
+  const contents = path.join(root, 'Cursor.app', 'Contents');
+  const app = path.join(contents, 'Resources', 'app');
+  const executable = path.join(contents, 'MacOS', 'Cursor');
+  try {
+    fs.mkdirSync(app, { recursive: true });
+    fs.mkdirSync(path.dirname(executable), { recursive: true });
+    fs.writeFileSync(path.join(app, 'product.json'), '{}');
+    fs.writeFileSync(executable, '');
+
+    assert.equal(appDirFrom(executable, 'darwin'), app);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -40,7 +40,7 @@ function cleanValue(value) {
   return raw;
 }
 
-function appDirFrom(value) {
+function appDirFrom(value, platform = process.platform) {
   if (!value) return null;
   const p = path.resolve(cleanValue(value));
   if (fs.existsSync(path.join(p, 'product.json'))) return p;
@@ -56,9 +56,12 @@ function appDirFrom(value) {
   if (fs.existsSync(path.join(dir, 'resources', 'app', 'product.json'))) {
     return path.join(dir, 'resources', 'app');
   }
-  if (process.platform === 'darwin'
-    && fs.existsSync(path.join(dir, '..', 'Resources', 'app', 'product.json'))) {
-    return path.resolve(dir, '..', 'Resources', 'app');
+  const contentsDir = path.dirname(dir);
+  if (platform === 'darwin'
+    && path.basename(dir).toLowerCase() === 'macos'
+    && path.basename(contentsDir).toLowerCase() === 'contents'
+    && fs.existsSync(path.join(contentsDir, 'Resources', 'app', 'product.json'))) {
+    return path.join(contentsDir, 'Resources', 'app');
   }
   if (base === 'cursor.exe' && fs.existsSync(path.join(dir, 'resources', 'app', 'product.json'))) {
     return path.join(dir, 'resources', 'app');
