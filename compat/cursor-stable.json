@@ -5,12 +5,12 @@
   "version": "3.12.10",
   "releaseCommit": "24a12dbd9cabf48956ce5bb3dbd234e41385b3df",
   "commit": "24a12dbd9cabf48956ce5bb3dbd234e41385b3d0",
-  "validatedAt": "2026-07-16T19:02:02.535Z",
+  "validatedAt": "2026-07-16T23:47:17.154Z",
   "metrics": {
-    "codeReplacements": 14468,
+    "codeReplacements": 14561,
     "workbenchBundles": 3,
     "accountUsageBundles": 2,
-    "cursorNlsReplacements": 156
+    "cursorNlsReplacements": 199
   },
   "gates": {
     "minCodeReplacementRatio": 0.7,
