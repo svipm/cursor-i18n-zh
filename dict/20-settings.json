@@ -1086,5 +1086,10 @@
   "Max worktrees": { "zh": "最大工作树数量", "ctx": ["prop"] },
   "Maximum retained Cursor-managed worktrees": { "zh": "Cursor 管理的工作树最大保留数量", "ctx": ["prop"] },
   "Maximum aggregate worktree size": { "zh": "工作树最大总大小", "ctx": ["prop"] },
-  "Continuous RPC File Recording": { "zh": "持续记录 RPC 文件", "ctx": ["prop"] }
+  "Continuous RPC File Recording": { "zh": "持续记录 RPC 文件", "ctx": ["prop"] },
+  "OpenAI API Key": "OpenAI API 密钥",
+  "OpenAI-compatible API base URL for the local agent.": "本地智能体使用的 OpenAI 兼容 API 基础 URL。",
+  "Public Profile": "公开个人资料",
+  "Third-Party Imports": "第三方导入",
+  "Wrap long lines in Agent conversation code blocks": "在智能体会话代码块中自动换行"
 }

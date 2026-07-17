@@ -1325,5 +1325,20 @@
   "GitHub user has no access to this resource.": "GitHub 用户无权访问此资源。",
   "GitHub/GitLab access refresh failed": "GitHub/GitLab 访问权限刷新失败",
   "GitHub/GitLab access refresh succeeded": "GitHub/GitLab 访问权限刷新成功",
-  "GitHub/GitLab access required": "需要 GitHub/GitLab 访问权限"
+  "GitHub/GitLab access required": "需要 GitHub/GitLab 访问权限",
+  "New worktree": "新建工作树",
+  "No context has been added yet.": "尚未添加上下文。",
+  "Open Desktop": "打开桌面端",
+  "Open new window in worktree": "在工作树中打开新窗口",
+  "Open terminal in worktree": "在工作树中打开终端",
+  "Parallelize requests with a fleet of subagents": "使用一组子智能体并行处理请求",
+  "Partial context included": "已包含部分上下文",
+  "Pinpoint the root cause of an issue": "精确定位问题根因",
+  "Running Capabilities": "运行中的能力",
+  "Send After Current Message": "在当前消息后发送",
+  "Send Right Away": "立即发送",
+  "Side chats cannot be moved to another location": "侧边聊天无法移到其他位置",
+  "View setup instructions": "查看设置说明",
+  "Your GitHub connection session expired. Please try connecting again.": "GitHub 连接会话已过期。请重新连接。",
+  "Your team admin can switch to 'Privacy Mode' to use cloud agents.": "你的团队管理员可以切换到隐私模式以使用云端智能体。"
 }
