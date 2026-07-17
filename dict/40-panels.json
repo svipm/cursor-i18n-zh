@@ -863,6 +863,7 @@
   "Hook execution error": "Hook 执行错误",
   "Hooks that run during the agent's loop will show up here.": "智能体循环期间运行的 Hook 会显示在这里。",
   "Import Claude Code agents": "导入 Claude Code 智能体",
+  "Import Claude Code Agents": "导入 Claude Code 智能体",
   "Import from Github": "从 GitHub 导入",
   "Installed extensions": "已安装扩展",
   "Installing extensions": "正在安装扩展",
