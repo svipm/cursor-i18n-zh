@@ -5,9 +5,9 @@
   "version": "3.12.10",
   "releaseCommit": "24a12dbd9cabf48956ce5bb3dbd234e41385b3df",
   "commit": "24a12dbd9cabf48956ce5bb3dbd234e41385b3d0",
-  "validatedAt": "2026-07-16T23:47:17.154Z",
+  "validatedAt": "2026-07-17T00:08:10.852Z",
   "metrics": {
-    "codeReplacements": 14561,
+    "codeReplacements": 14679,
     "workbenchBundles": 3,
     "accountUsageBundles": 2,
     "cursorNlsReplacements": 199
