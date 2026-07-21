@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "stable",
   "platform": "win32-x64-user",
-  "version": "3.12.17",
-  "releaseCommit": "0fb762053c34788bb7760d5673f8a6d4c8589d52",
-  "commit": "0fb762053c34788bb7760d5673f8a6d4c8589d50",
-  "validatedAt": "2026-07-17T14:09:45.863Z",
+  "version": "3.12.29",
+  "releaseCommit": "cd1c87ff9b66021918fb9731605f8d1d5fd2f0b2",
+  "commit": "cd1c87ff9b66021918fb9731605f8d1d5fd2f0b0",
+  "validatedAt": "2026-07-21T19:58:24.403Z",
   "metrics": {
-    "codeReplacements": 14735,
+    "codeReplacements": 14745,
     "workbenchBundles": 3,
     "accountUsageBundles": 2,
     "cursorNlsReplacements": 199
