@@ -512,7 +512,11 @@ fn require_install_backup(root: &Path, locale: &str) -> Result<(), String> {
 }
 
 fn run_cli_quiet(root: &Path, command: &str, locale: &str) -> Result<String, String> {
-    let output = hidden_command("node")
+    // macOS GUI 应用从 Finder 启动时 PATH 不含用户自装 node（Volta/NVM/asdf 等），
+    // 裸 "node" 会 ENOENT。复用 node_executable_path_buf() 取绝对路径，与 run() 一致。
+    let node = node_executable_path_buf()
+        .ok_or_else(|| "未找到 Node.js 18 或更高版本".to_string())?;
+    let output = hidden_command(&node.to_string_lossy())
         .arg(root.join("src").join("cli.js"))
         .arg(command)
         .args(["--locale", locale])
