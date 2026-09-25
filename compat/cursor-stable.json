@@ -5,7 +5,7 @@
   "version": "3.22.7",
   "releaseCommit": "37076c6c3f9e253c0fa2305197e45befd13a2268",
   "commit": "37076c6c3f9e253c0fa2305197e45befd13a2260",
-  "validatedAt": "2026-09-25T20:54:46.033Z",
+  "validatedAt": "2026-09-25T21:17:31.931Z",
   "metrics": {
     "codeReplacements": 12976,
     "workbenchBundles": 3,
