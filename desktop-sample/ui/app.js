@@ -175,7 +175,7 @@ function browserFallbackApps() {
   return [
     {
       id: "cursor", name: "Cursor", installed: true, ready: true, path: "浏览器预览模式",
-      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.4.2",
+      version: "preview", state: "适配器可用", stateTone: "success", adapterVersion: "0.4.3",
       backupAvailable: true, backupPath: "浏览器预览模式\\backup\\preview", backupFiles: 7,
       backupMessage: "浏览器预览样例: 7 个文件已通过完整性校验", localized: false, reason: null,
       autoCompatible: true, compatibilityMessage: "已按资源结构自动适配未来 Cursor 版本, 安装前仍会执行完整语法预检",
@@ -233,13 +233,13 @@ function browserFallbackUsage() {
 
 function browserFallbackUpdateStatus() {
   return {
-    currentVersion: "0.4.2",
-    latestVersion: "0.4.2",
+    currentVersion: "0.4.3",
+    latestVersion: "0.4.3",
     updateAvailable: false,
     currentAhead: false,
     releaseUrl: "https://github.com/svipm/cursor-i18n-zh/releases",
     publishedAt: new Date().toISOString(),
-    message: "浏览器预览样例: 当前 v0.4.2 已是最新版本",
+    message: "浏览器预览样例: 当前 v0.4.3 已是最新版本",
   };
 }
 
@@ -689,7 +689,7 @@ async function downloadLatestUpdate() {
   try {
     const result = invoke
       ? await invoke("download_latest_update")
-      : { version: "0.4.2", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo", cached: false };
+      : { version: "0.4.3", path: "D:\\Downloads\\localization-workbench.zip", sha256: "demo", cached: false };
     addLog("DONE", `更新包 v${result.version} ${result.cached ? "已从本地缓存复用" : "已流式下载"}并通过 SHA256 校验: ${result.path}`);
     setUpdateDownloadProgress(100, result.cached ? "本地缓存已通过 SHA256 校验" : "更新包已下载并通过 SHA256 校验", "complete");
     showToast(`更新包 v${result.version} ${result.cached ? "缓存已校验" : "下载已完成"}.`, "success");

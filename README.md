@@ -146,14 +146,14 @@ app/resources/ion-dist/i18n/dynamic/en-US.json
 从 [最新发行版](https://github.com/svipm/cursor-i18n-zh/releases/latest) 下载推荐的完整便携包:
 
 ```text
-localization-workbench-v0.4.2-windows.zip
+localization-workbench-v0.4.3-windows.zip
 ```
 
 执行步骤:
 
 1. 解压完整 ZIP, 不要只移动其中的 EXE.
 2. 如果要汉化 Cursor, 先安装 Node.js 18 或更高版本.
-3. 双击 `localization-workbench-v0.4.2.exe`.
+3. 双击 `localization-workbench-v0.4.3.exe`.
 4. 阅读并同意首次启动声明与隐私说明.
 5. 打开“备份”页, 为目标应用创建并校验当前版本原始备份.
 6. 打开“软件中心”, 选择目标语言并安装汉化.
@@ -212,8 +212,8 @@ Claude Desktop 适配流程:
 
 macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 
-- `localization-workbench-v0.4.2-macos.dmg`: 推荐安装包.
-- `localization-workbench-v0.4.2-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
+- `localization-workbench-v0.4.3-macos.dmg`: 推荐安装包.
+- `localization-workbench-v0.4.3-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
 - 默认构建 Universal Binary, 同时包含 Apple Silicon `arm64` 和 Intel `x86_64`.
 - 从 Finder 启动时会定位 PATH, Homebrew, NVM, Volta, asdf, mise 和 fnm 中的 Node.js, 并使用检测到的实际可执行文件运行 Cursor 引擎.
 - 自动定位 `/Applications/Cursor.app/Contents/Resources/app` 和 `/Applications/Claude.app/Contents/Resources`.
@@ -290,10 +290,10 @@ GitHub Actions 会并行执行 Windows 与 macOS 测试和构建. Windows 生成
 
 ## 发布产物
 
-- `localization-workbench-v0.4.2-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
-- `localization-workbench-v0.4.2.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
-- `localization-workbench-v0.4.2-macos.dmg`: macOS 推荐安装包.
-- `localization-workbench-v0.4.2-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
+- `localization-workbench-v0.4.3-windows.zip`: Windows 推荐下载, 包含工作台 EXE, Cursor 引擎, 词典, Node.js 依赖, README 和第三方许可证.
+- `localization-workbench-v0.4.3.exe`: Windows 单文件 GUI. Claude Desktop 功能可独立运行; Cursor 功能仍需要完整便携包和 Node.js 18+.
+- `localization-workbench-v0.4.3-macos.dmg`: macOS 推荐安装包.
+- `localization-workbench-v0.4.3-macos-app.zip`: macOS `.app` 便携包, 内含 Cursor 汉化引擎和运行依赖.
 - `cursor-i18n-zh-windows.zip`: Cursor 终端版和传统入口.
 - `SHA256SUMS.txt`: 所有发布文件的 SHA256 校验值.
 

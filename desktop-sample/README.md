@@ -1,4 +1,4 @@
-# 汉化工作台 v0.4.2
+# 汉化工作台 v0.4.3
 
 执行以下约束:
 
@@ -119,6 +119,14 @@ Microsoft 官方 Cursor 中文语言包仅通过 Cursor CLI 按需安装或读�
 - 关于页提供完整声明的重新查看入口, GitHub 头像仅在打开关于页时按需加载.
 - 工作台不包含遥测或行为分析, 本地备份内容和操作日志不会上传.
 
+## v0.4.3 更新说明
+
+- 修复 Cursor 3.16 起工作台迁移到 React 后, 账号设置页无法再嵌入原生套餐与用量入口的问题.
+- 账号用量嵌入同时支持旧 SolidJS 结构与 React 结构, 元素工厂和用量组件名从产物推导, 不硬编码压缩后符号.
+- 账号页锚点改为按结构定位, 区分渲染代码与设置项注册表中的同名描述, 结构异常时安全停止并报告原因.
+- 按 Cursor 3.22.7 实际扫描结果补齐首次转向提示、通行密钥提示、报告问题菜单、资源管理器与终端标签等文案.
+- 稳定版兼容基线从 Cursor 3.14.27 推进到 3.22.7.
+
 ## v0.4.2 更新说明
 
 - 关于页新增更新下载进度条, 实时展示发行版读取、缓存校验、累计下载 MB、SHA256 和原子提交阶段.
@@ -221,7 +229,7 @@ npm run package-desktop
 
 ```text
 src-tauri\target\release\cursor-i18n-desktop-sample.exe
-..\dist\localization-workbench-v0.4.2.exe
-..\dist\localization-workbench-v0.4.2-windows.zip
+..\dist\localization-workbench-v0.4.3.exe
+..\dist\localization-workbench-v0.4.3-windows.zip
 ..\dist\SHA256SUMS.txt
 ```

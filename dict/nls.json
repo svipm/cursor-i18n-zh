@@ -20,6 +20,7 @@
   "vs/workbench/contrib/composer/electron-sandbox/webviewBrowserManager#browserContextMenu.openMediaNewTab": "在新标签页中打开媒体",
   "vs/workbench/contrib/composer/electron-sandbox/webviewBrowserManager#browserContextMenu.copyMediaAddress": "复制媒体地址",
   "vs/workbench/contrib/composer/electron-sandbox/webviewBrowserManager#passkeyRequestStalled": "此安全密钥/通行密钥请求在 Cursor 浏览器中耗时超出预期。",
+  "vs/workbench/contrib/composer/electron-sandbox/webviewBrowserManager#passkeyHybridUnsupported": "此登录需要通过二维码从手机或平板使用通行密钥，而 Cursor 浏览器无法显示该二维码。请在常规浏览器中打开此页面以继续。",
 
   "vs/workbench/contrib/composer/browser/browserEditor.contribution#closeBrowserTab.message": "关闭浏览器标签页",
   "vs/workbench/contrib/composer/browser/browserEditor.contribution#closeBrowserTab.detail": "此浏览器由智能体创建。关闭它可能影响正在运行的聊天。",
@@ -32,6 +33,10 @@
   "vs/workbench/contrib/composer/browser/browserEditor.contribution#focusBrowserLocationBar": "聚焦浏览器地址栏",
   "vs/workbench/contrib/composer/browser/browserEditor.contribution#openCursorWebsite": "在浏览器中打开 cursor.com",
   "vs/workbench/contrib/composer/browser/browserEditor.contribution#openYearInReview": "打开年度回顾",
+
+  "vs/workbench/contrib/composer/browser/utils/firstSteerNotice#firstSteerNoticeTitle": "你的消息已让智能体转向，且未中断其运行",
+  "vs/workbench/contrib/composer/browser/utils/firstSteerNotice#firstSteerNoticeDescription": "“新消息”已设为“转向”",
+  "vs/workbench/contrib/composer/browser/utils/firstSteerNotice#firstSteerNoticeOpenSettings": "打开设置",
 
   "vs/workbench/contrib/aiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInWindows": "在文件资源管理器中显示",
   "vs/workbench/contrib/aiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInMac": "在 Finder 中显示",
@@ -168,6 +173,7 @@
   "vs/workbench/contrib/appLayout/electron-sandbox/glassModeActions#cursor.openGlassAndChangeToMultitask": "打开 Glass 并切换到多任务",
 
   "vs/workbench/contrib/cursorBlame/browser/aiBlameHover.contribution#cursor.blame.hoverDelay": "控制 Cursor Blame 悬停提示出现前的延迟毫秒数。未设置时使用 `#editor.hover.delay#`，最小值为 500ms。",
+  "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursor.blame.hoverDelay": "控制 Cursor Blame 悬停提示出现前的延迟毫秒数。未设置时使用 `#editor.hover.delay#`，最小值为 500ms。",
   "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlame.editorDecoration.enabled": "控制是否使用编辑器装饰在编辑器中显示 Blame 信息。",
   "vs/workbench/contrib/cursorBlame/browser/cursorBlame.contribution#cursorBlame.editorDecoration.forceDisabled": "启用后，强制禁用 git blame 编辑器装饰，覆盖任何工作区级设置。这是应用级设置。",
   "vs/workbench/contrib/cursorLocalTrace/browser/cursorLocalTrace.contribution#cursorLocalTraceMode": "启用后，在本地记录性能标记和测量结果 (例如 Chrome DevTools Performance)，并将 VS Code RPC 镜像到 DevTools Network 标签页。",
@@ -186,6 +192,10 @@
 
   "vs/workbench/contrib/composer/browser/transcript/composerTranscriptToolRuntime#composerTranscript.openFileFailed": "无法打开 {0}",
   "vs/workbench/contrib/cursorAiFeedback/browser/aiFeedbackActions#miGiveFeedback": "提供反馈(&&F)...",
+  "vs/workbench/contrib/cursorAiFeedback/browser/aiFeedbackActions#miReportIssue": "报告问题(&&I)",
+
+  "vs/workbench/contrib/files/browser/files.glass.contribution#explore": "资源管理器",
+  "vs/workbench/contrib/terminal/browser/terminal.glass.contribution#terminal": "终端",
 
   "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInWindows": "在文件资源管理器中显示",
   "vs/workbench/contrib/cursorAiMarkdown/browser/chatFileReferenceContextMenu#chatRevealInMac": "在 Finder 中显示",
@@ -224,5 +234,10 @@
   "vs/workbench/contrib/terminalContrib/cursorExternalAgentStatus/browser/terminal.externalAgentStatus.contribution#workbench.action.terminal.externalAgentActions.title": "外部智能体操作",
 
   "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursorAuthConfigurationTitle": "Cursor 认证",
-  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedTeamId": "指定用户必须所属的团队 ID 才能使用 Cursor。设置后，如果已登录用户不属于该团队，Cursor 会自动将其退出登录。"
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedTeamId": "指定用户必须所属的团队 ID 才能使用 Cursor。设置后，如果已登录用户不属于该团队，Cursor 会自动将其退出登录。",
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.signInEnforcement": "通过设备管理 (MDM) 启用后，对于不匹配任何已配置的允许组织、团队、邮箱或邮箱域名的账号，Cursor 后端将拒绝签发或刷新登录会话。",
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedOrganizationIds": "允许在此设备上登录的 Cursor 组织 ID 列表，以逗号分隔 (通过设备管理设置)。",
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedTeamIds": "允许在此设备上登录的 Cursor 团队 ID 列表，以逗号分隔 (通过设备管理设置)。此项会取代单数形式的 AllowedTeamId 策略；两者都会生效。",
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedLoginEmails": "允许在此设备上登录的账号邮箱精确列表，以逗号分隔 (通过设备管理设置)。比较时不区分大小写。",
+  "vs/workbench/services/cursorAuth/browser/authenticationService.contribution#cursor.allowedLoginDomains": "允许在此设备上登录的邮箱域名列表 (例如 example.com)，以逗号分隔 (通过设备管理设置)。仅精确匹配域名；不会自动包含子域名。"
 }
