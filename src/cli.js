@@ -69,12 +69,14 @@ function classifyTargetState(liveHash, backupHash, officialHash) {
 }
 
 // 通过 stdin 交给 Node 语法检查, 避免为每个超大入口包创建临时文件.
+// Cursor 3.16 起四个补丁目标都是 ESM. 先按 ESM 校验, 失败再退回 CJS;
+// 旧顺序 (先 CJS) 会让 ESM 文件每次都白付一次注定失败的整包解析.
 function syntaxCheck(text, rel) {
   const common = { encoding: 'utf8', input: text, maxBuffer: 1024 * 1024 };
-  const cjs = cp.spawnSync(process.execPath, ['--check', '-'], common);
-  if (cjs.status === 0) return;
   const esm = cp.spawnSync(process.execPath, ['--input-type=module', '--check', '-'], common);
   if (esm.status === 0) return;
+  const cjs = cp.spawnSync(process.execPath, ['--check', '-'], common);
+  if (cjs.status === 0) return;
   const detail = (esm.stderr || cjs.stderr || String(esm.status)).slice(0, 600);
   throw new Error(`补丁后语法校验未通过: ${rel}\n${detail}`);
 }
@@ -353,6 +355,9 @@ function logPatchPlan(ctx, plan, prefix) {
     log(`${prefix}: ${NLS_MESSAGES} (Cursor 专有替换 ${plan.nls.count} 条)`);
     for (const item of plan.nls.ambiguousSkipped || []) log(`[nls 跳过] 歧义 key: ${item.id}`);
     for (const key of plan.nls.unknown) log(`[nls 警告] 找不到 key: ${key}`);
+    if (plan.nls.staleModuleKeys > 0) {
+      log(`[nls 提示] 另有 ${plan.nls.staleModuleKeys} 个词典 key 属于当前 Cursor 版本不存在的模块 (旧版本条目, 已跳过)`);
+    }
   }
   log(`checksums: ${plan.product.updated.join(', ') || '(无)'}`);
 }

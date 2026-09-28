@@ -228,10 +228,19 @@ function buildPatchedNls(appDir, srcPath, nlsDict = {}, options = {}) {
   assertUnambiguousNlsKeys(index, messages, Object.keys(nlsDict || {}));
   const sourceMessages = messages.slice();
   const unknown = [];
+  // 词典是跨版本超集, 旧 Cursor 版本遗留的 key 属于预期情况. 只把"模块还在但 key
+  // 没了"当作值得逐条提示的信号; 整个模块都不存在的计入旧版本残留统计, 不逐条刷屏.
+  const knownModules = new Set();
+  for (const id of index.keys()) knownModules.add(id.slice(0, id.indexOf('#')));
+  let staleModuleKeys = 0;
   let count = 0;
   for (const [key, zh] of Object.entries(nlsDict || {})) {
     const idxs = index.get(key);
-    if (!idxs) { unknown.push(key); continue; }
+    if (!idxs) {
+      if (!knownModules.has(key.slice(0, key.indexOf('#')))) staleModuleKeys++;
+      else unknown.push(key);
+      continue;
+    }
     if (typeof zh !== 'string' || !zh) continue;
     for (const i of idxs) validateNlsPlaceholders(sourceMessages[i], zh, key);
   }
@@ -255,6 +264,7 @@ function buildPatchedNls(appDir, srcPath, nlsDict = {}, options = {}) {
     messages,
     count,
     unknown,
+    staleModuleKeys,
     langPackCount,
     langPackPlaceholderSkipped: langPackStats.placeholderSkipped || 0,
     langPackDir: langPack.dir,

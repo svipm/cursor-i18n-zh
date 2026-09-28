@@ -107,3 +107,37 @@ test('reports a structural reason instead of guessing when the React account lis
   assert.equal(result.reason, 'react-account-anchor-missing');
   assert.equal(result.text, source);
 });
+
+test('binds the real plan usage component when an earlier function logs the same text', () => {
+  const decoy = 'function decoyLogger(e){a.error("Failed to fetch hard limit",e);return null}';
+  const source = decoy + reactFixture();
+  const result = embedAccountUsage(source);
+
+  assert.equal(result.injected, true);
+  // 注入必须引用真正的用量组件, 而不是更早出现同一段日志文案的诱饵函数.
+  assert.match(result.text, /,Rk\(planUsage,\{i18nAccountUsage:!0\}\)\]/);
+  assert.ok(!result.text.includes('decoyLogger,{i18nAccountUsage'));
+  assert.doesNotThrow(() => new vm.Script(result.text));
+});
+
+test('stops safely when the anchor lands in a function that is not the plan usage page', () => {
+  const source = reactFixture()
+    .replace('[PlanUsageConfig] Failed to fetch hard limit', 'Failed to fetch hard limit')
+    .replace('title:"Plan & Usage"', 'title:"Somewhere Else"');
+  const result = embedAccountUsage(source);
+
+  assert.equal(result.injected, false);
+  assert.equal(result.reason, 'react-plan-usage-function-missing');
+  assert.equal(result.text, source);
+});
+
+test('binds correctly past anonymous function expressions and hundreds of earlier declarations', () => {
+  const dummies = Array.from({ length: 400 }, (_, i) => `function dummy${i}(e){const t=pxp(${i});return t}`).join('\n');
+  const source = dummies + '\n' + reactFixture()
+    .replace('const t=Fr(ow);', 'const anon=function(x){return x},gen=function*(y){yield y},t=Fr(ow);');
+  const result = embedAccountUsage(source);
+
+  assert.equal(result.injected, true);
+  assert.match(result.text, /,Rk\(planUsage,\{i18nAccountUsage:!0\}\)\]/);
+  assert.doesNotThrow(() => new vm.Script(result.text));
+});

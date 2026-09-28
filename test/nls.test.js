@@ -162,6 +162,27 @@ test('builds a validated NLS result without writing the live message file', (t) 
   assert.equal(fs.existsSync(path.join(appDir, 'out', 'nls.messages.json')), false);
 });
 
+test('splits missing dict keys into stale modules and live-module mismatches', (t) => {
+  const appDir = tempDir(t);
+  const sourcePath = path.join(appDir, 'original.messages.json');
+  const keysPath = path.join(appDir, 'backup', 'nls.keys.json');
+  writeJson(keysPath, [['vs/workbench/contrib/live', ['title', 'other']]]);
+  writeJson(sourcePath, ['Open', 'File']);
+
+  const result = buildPatchedNls(appDir, sourcePath, {
+    'vs/workbench/contrib/live#title': '打开',
+    'vs/workbench/contrib/live#gone': '模块还在但已删除的键',
+    'vs/workbench/contrib/removed#anything': '旧版本条目',
+    'vs/workbench/contrib/removed#more': '旧版本条目二',
+  }, { keysPath });
+
+  // 模块存在但 key 缺失 -> 保留逐条提示 (真实信号)
+  assert.deepEqual(result.unknown, ['vs/workbench/contrib/live#gone']);
+  // 整个模块不存在 -> 归入旧版本残留统计, 不再逐条刷屏
+  assert.equal(result.staleModuleKeys, 2);
+  assert.equal(result.count, 1);
+});
+
 test('reports placeholder mismatches skipped from an official language pack', (t) => {
   const appDir = tempDir(t);
   const homeDir = tempDir(t);

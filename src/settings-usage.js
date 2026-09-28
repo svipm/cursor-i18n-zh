@@ -21,7 +21,14 @@ const LEGACY_PLAN_USAGE_ANCHOR = '[SettingsPlanUsageTab] Failed to fetch hard li
 // 设置项注册表里也有同样的描述文本, 用账号列表锚点区分渲染代码与元数据.
 const REACT_ACCOUNT_DESCRIPTION = 'description:"Manage your account and billing"';
 const REACT_ACCOUNT_LIST = 'accessibleLabel:"Account",children:[';
-const REACT_PLAN_USAGE_SIGNAL = 'Failed to fetch hard limit';
+// 用量组件锚点按特异性排序: 优先用带日志前缀的精确锚点, 找不到再退回通用文案,
+// 避免把更早出现的无关 "Failed to fetch hard limit" 日志误当成用量组件.
+const REACT_PLAN_USAGE_ANCHORS = [
+  '[PlanUsageConfig] Failed to fetch hard limit',
+  'Failed to fetch hard limit',
+];
+// 用量组件渲染的页面标题, 用来确认绑定的确实是该组件而不是恰好包含锚点的其它函数.
+const REACT_PLAN_USAGE_TITLE = 'title:"Plan & Usage"';
 const REACT_ENTRY_RE = /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\.Entry,\{description:"Manage your account and billing"/;
 
 // 旧结构使用的严格匹配: 要求参数列表后紧跟函数体, 保持既有行为不变.
@@ -35,15 +42,21 @@ function legacyFunctionBefore(text, index) {
   return found;
 }
 
-// 最近一个位于 index 之前的具名函数声明.
+// 从 index 向前回溯最近的具名函数声明.
+// 锚点所在的函数通常就在附近几 KB 内, 而工作台 bundle 可达 40MB;
+// 从文件头正则扫描是 O(锚点位置), 向前回溯只需 O(锚点到函数起点的距离).
+const FUNCTION_DECL_RE = /^function\s+([A-Za-z_$][\w$]*)\s*\(/;
+
 function functionBefore(text, index) {
-  const re = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
-  let found = null;
-  let match;
-  while ((match = re.exec(text)) && match.index < index) {
-    found = { name: match[1], index: match.index };
+  let cursor = Math.min(index - 1, text.length - 1);
+  while (cursor >= 0) {
+    const at = text.lastIndexOf('function', cursor);
+    if (at < 0) return null;
+    const match = FUNCTION_DECL_RE.exec(text.slice(at, at + 256));
+    if (match) return { name: match[1], index: at };
+    cursor = at - 1;
   }
-  return found;
+  return null;
 }
 
 // 用 acorn 分词扫描 fnStart 处的具名函数, 跳过参数列表后只跟踪函数体.
@@ -89,8 +102,9 @@ function scanFunctionBody(text, fnStart, target) {
 function enclosingFunction(text, index) {
   let candidate = functionBefore(text, index);
   for (let guard = 0; candidate && guard < 8; guard++) {
-    if (scanFunctionBody(text, candidate.index, -1).bodyEnd > index) {
-      return { name: candidate.name, index: candidate.index };
+    const body = scanFunctionBody(text, candidate.index, -1);
+    if (body.bodyEnd > index) {
+      return { name: candidate.name, index: candidate.index, end: body.bodyEnd };
     }
     candidate = functionBefore(text, candidate.index - 1);
   }
@@ -175,10 +189,26 @@ function embedReactAccountUsage(text) {
   const entryFactory = REACT_ENTRY_RE.exec(text.slice(listIndex, descriptionIndex + 80))?.[1];
   if (!entryFactory) return { text, injected: false, reason: 'react-entry-factory-missing' };
 
-  const planUsageIndex = text.indexOf(REACT_PLAN_USAGE_SIGNAL);
-  if (planUsageIndex < 0) return { text, injected: false, reason: 'react-plan-usage-anchor-missing' };
-  const planUsageFunction = enclosingFunction(text, planUsageIndex);
-  if (!planUsageFunction) return { text, injected: false, reason: 'react-plan-usage-function-missing' };
+  // 按特异性依次尝试用量组件锚点; 绑定后校验组件身份, 防止接到无关函数或账号页自身.
+  let planUsageFunction = null;
+  let sawPlanUsageSignal = false;
+  for (const signal of REACT_PLAN_USAGE_ANCHORS) {
+    const signalIndex = text.indexOf(signal);
+    if (signalIndex < 0) continue;
+    sawPlanUsageSignal = true;
+    const candidate = enclosingFunction(text, signalIndex);
+    if (!candidate || candidate.index === accountFunction.index) continue;
+    if (!text.slice(candidate.index, candidate.end).includes(REACT_PLAN_USAGE_TITLE)) continue;
+    planUsageFunction = candidate;
+    break;
+  }
+  if (!planUsageFunction) {
+    return {
+      text,
+      injected: false,
+      reason: sawPlanUsageSignal ? 'react-plan-usage-function-missing' : 'react-plan-usage-anchor-missing',
+    };
+  }
 
   const addition = `,${entryFactory}(${planUsageFunction.name},{${INJECTION_MARKER}})`;
   return {
