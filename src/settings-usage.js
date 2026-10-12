@@ -18,7 +18,10 @@ const LEGACY_ACCOUNT_ANCHOR = 'label:"Cursor Account",description:"Manage your a
 const LEGACY_PLAN_USAGE_ANCHOR = '[SettingsPlanUsageTab] Failed to fetch hard limit';
 
 // React 结构 (Cursor >= 3.16).
-// 设置项注册表里也有同样的描述文本, 用账号列表锚点区分渲染代码与元数据.
+// 3.16-3.23: 账号条目直接写在 children 数组里, 描述紧跟列表开头.
+// 3.24 起: 条目先赋值给 memo 变量, 列表改为引用变量 (children:[y,T,E]), 列表出现在描述之后.
+// 因此定位方式改为: 先找账号列表锚点, 再用同一函数体内的账号条目描述确认身份;
+// 设置项注册表里也有同样的描述文本, 但它所在函数没有该列表, 因此不会被选中.
 const REACT_ACCOUNT_DESCRIPTION = 'description:"Manage your account and billing"';
 const REACT_ACCOUNT_LIST = 'accessibleLabel:"Account",children:[';
 // 用量组件锚点按特异性排序: 优先用带日志前缀的精确锚点, 找不到再退回通用文案,
@@ -29,7 +32,8 @@ const REACT_PLAN_USAGE_ANCHORS = [
 ];
 // 用量组件渲染的页面标题, 用来确认绑定的确实是该组件而不是恰好包含锚点的其它函数.
 const REACT_PLAN_USAGE_TITLE = 'title:"Plan & Usage"';
-const REACT_ENTRY_RE = /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\.Entry,\{description:"Manage your account and billing"/;
+// 账号条目用的元素工厂与命名空间 (随压缩产物变化, 因此从产物里推导).
+const REACT_ACCOUNT_ENTRY_RE = /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\.Entry,\{description:"Manage your account and billing"/;
 
 // 旧结构使用的严格匹配: 要求参数列表后紧跟函数体, 保持既有行为不变.
 function legacyFunctionBefore(text, index) {
@@ -165,28 +169,33 @@ function embedLegacyAccountUsage(text) {
 
 // Cursor >= 3.16: 向账号页 entries 列表追加一个渲染原生用量组件的条目.
 function embedReactAccountUsage(text) {
+  // 定位账号页: 逐个候选列表锚点, 要求其所在函数体内含有账号条目描述.
+  // 设置项注册表也含同一描述文本, 但没有该列表锚点, 因此不会被选中.
+  // 3.24 起条目先赋值给变量、列表再引用变量 (children:[y,T,E]), 描述与列表的先后顺序不再固定,
+  // 因此不能沿用"描述前 N 字符内必须是列表开头"的邻近假设.
+  let accountFunction = null;
+  let listIndex = -1;
   let descriptionIndex = -1;
   let cursor = -1;
-  while ((cursor = text.indexOf(REACT_ACCOUNT_DESCRIPTION, cursor + 1)) >= 0) {
-    if (text.slice(Math.max(0, cursor - 400), cursor).includes('accessibleLabel:"Account"')) {
-      descriptionIndex = cursor;
-      break;
-    }
+  while ((cursor = text.indexOf(REACT_ACCOUNT_LIST, cursor + 1)) >= 0) {
+    const candidate = enclosingFunction(text, cursor);
+    if (!candidate) continue;
+    const descRel = text.slice(candidate.index, candidate.end).indexOf(REACT_ACCOUNT_DESCRIPTION);
+    if (descRel < 0) continue;
+    accountFunction = candidate;
+    listIndex = cursor;
+    descriptionIndex = candidate.index + descRel;
+    break;
   }
-  if (descriptionIndex < 0) return { text, injected: false, reason: 'react-account-anchor-missing' };
+  if (!accountFunction) return { text, injected: false, reason: 'react-account-anchor-missing' };
 
-  const accountFunction = enclosingFunction(text, descriptionIndex);
-  if (!accountFunction) return { text, injected: false, reason: 'react-account-function-missing' };
-
-  const listIndex = text.lastIndexOf(REACT_ACCOUNT_LIST, descriptionIndex);
-  if (listIndex < accountFunction.index) {
-    return { text, injected: false, reason: 'react-account-list-missing' };
-  }
   const openIndex = listIndex + REACT_ACCOUNT_LIST.length - 1;
   const closeIndex = scanFunctionBody(text, accountFunction.index, openIndex).close;
   if (closeIndex < 0) return { text, injected: false, reason: 'react-account-list-unbalanced' };
 
-  const entryFactory = REACT_ENTRY_RE.exec(text.slice(listIndex, descriptionIndex + 80))?.[1];
+  const entryFactory = REACT_ACCOUNT_ENTRY_RE.exec(
+    text.slice(accountFunction.index, descriptionIndex + 120),
+  )?.[1];
   if (!entryFactory) return { text, injected: false, reason: 'react-entry-factory-missing' };
 
   // 按特异性依次尝试用量组件锚点; 绑定后校验组件身份, 防止接到无关函数或账号页自身.

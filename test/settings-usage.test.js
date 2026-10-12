@@ -40,6 +40,17 @@ function reactFixture({ entryFactory = 'Rk', groupFactory = 'bLe', namespace = '
   ].join('');
 }
 
+// Cursor >= 3.24: React Compiler 把账号条目先赋值给 memo 变量, 列表改为引用变量,
+// 因此 accessibleLabel:"Account",children:[...] 出现在账号条目描述之后.
+function reactFixture324({ entryFactory = 'Yw', groupFactory = 'Y2e', namespace = 'Xs', planName = 'vHS' } = {}) {
+  return [
+    // 设置项注册表: 含同名描述, 但没有账号列表锚点, 必须被排除.
+    'function registry(){return[jc("general","cursor-account",{label:"Cursor Account",condition:"signed-in",description:"Manage your account and billing"})]}',
+    `function accountPage({membershipType:n}){const t=Wtn(26);let y;t[11]!==u?(y=${entryFactory}(${namespace}.Entry,{description:"Manage your account and billing",label:"Cursor Account",searchAliases:["account","billing","subscription"],children:${groupFactory}(ds,{onClick:u,size:"md",variant:"outline",children:"Open"})}),t[11]=u,t[12]=y):y=t[12];let T;T=n===fr.FREE?${entryFactory}(Upgrade,{children:"Upgrade"}):null;let E;E=${entryFactory}(Invite,{children:"Invite"});let A;return t[22]!==y||t[23]!==T||t[24]!==E?(A=${entryFactory}(y_,{children:${groupFactory}(${namespace}.Root,{accessibleLabel:"Account",children:[y,T,E]})}),t[22]=y,t[23]=T,t[24]=E,t[25]=A):A=t[25],A}`,
+    `function ${planName}(e){const t=iSa(146);t[0]!==b.error||t[1]!==c?(T=()=>{b.error!==null&&c.error("[PlanUsageConfig] Failed to fetch hard limit",b.error)}):T=t[2];return uHS(Cae,{legacyScrollGutter:n,title:"Plan & Usage",children:[]})}`,
+  ].join('');
+}
+
 test('embeds Cursor native plan and usage component below account information', () => {
   const source = legacyFixture();
   const result = embedAccountUsage(source);
@@ -139,5 +150,29 @@ test('binds correctly past anonymous function expressions and hundreds of earlie
 
   assert.equal(result.injected, true);
   assert.match(result.text, /,Rk\(planUsage,\{i18nAccountUsage:!0\}\)\]/);
+  assert.doesNotThrow(() => new vm.Script(result.text));
+});
+
+// Cursor 3.24 起账号条目改为先赋值给 memo 变量, 列表引用变量, 描述在列表之前.
+test('embeds into the 3.24 account list whose children reference memo variables', () => {
+  const source = reactFixture324();
+  const result = embedAccountUsage(source);
+
+  assert.equal(result.injected, true);
+  assert.equal(result.reason, null);
+  assert.match(result.text, /children:\[y,T,E,Yw\(vHS,\{i18nAccountUsage:!0\}\)\]/);
+  // 注入点必须在账号页内, 且不能落在设置项注册表里.
+  const marker = result.text.indexOf(INJECTION_MARKER);
+  assert.ok(marker > result.text.indexOf('function accountPage('));
+  assert.ok(marker < result.text.indexOf('function vHS('));
+  assert.doesNotThrow(() => new vm.Script(result.text));
+});
+
+test('derives the entry factory for the 3.24 layout from the bundle', () => {
+  const source = reactFixture324({ entryFactory: 'sT', groupFactory: 'Jze', namespace: 'Hs', planName: 'BCk' });
+  const result = embedAccountUsage(source);
+
+  assert.equal(result.injected, true);
+  assert.match(result.text, /children:\[y,T,E,sT\(BCk,\{i18nAccountUsage:!0\}\)\]/);
   assert.doesNotThrow(() => new vm.Script(result.text));
 });
