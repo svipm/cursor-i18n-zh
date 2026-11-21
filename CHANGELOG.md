@@ -25,6 +25,8 @@
 - GitHub Actions 使用官方稳定版 Cursor 3.31.15 完成自动兼容构建、Windows 打包、桌面工作台 Rust 测试与构建, 兼容基线已推进到 3.31.15.
 - 简体中文与繁體中文兼容门禁均通过: 代码替换 12469 处, 工作台入口 4 个, 账号用量入口 2 个, Cursor NLS 177 条.
 - 更新路径对已发布的 `v0.4.3` 真实资产完成端到端验证: 版本比较发现更新, 资产选择, SHA256SUMS 清单解析, 8.7MB 安装包下载, SHA256 逐字节校验和缓存复用全部通过.
+- `v0.4.4` 已发布. 发布工作流 (run #76) 的 Windows (4m26s), macOS (5m16s) 和 release (27s) 三个任务全部成功, EXE, Windows 便携包, macOS ZIP/DMG 及两份 SHA256 清单均已上传.
+- 发布后再次以 `v0.4.4` 真实资产执行更新路径验证: 从 `0.4.3` 正确发现 `0.4.4`, Windows 包下载后 SHA256 与清单一致, 缓存复用校验通过; `SHA256SUMS.txt` 与 `SHA256SUMS-macos.txt` 分别覆盖对应平台产物. 发布包内 `localization-workbench-v0.4.4.exe` 的 FileVersion 和 ProductVersion 均为 `0.4.4`.
 
 ## [0.4.3] - 2026-09-26
 
