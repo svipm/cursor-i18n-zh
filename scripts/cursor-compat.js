@@ -62,9 +62,22 @@ function main() {
   console.log(`Cursor ${ctx.product.version} (${String(ctx.product.commit || '').slice(0, 8)}) 自动兼容门禁通过.`);
 }
 
+// GitHub Actions 只把 workflow command 写进公开的 check-run annotation,
+// 普通 stderr 需要仓库 admin 权限才能下载日志. 把门禁失败原因转成 annotation,
+// 维护者无需登录下载日志就能看到具体是哪一项门禁未通过.
+function escapeAnnotation(value) {
+  return String(value)
+    .replace(/%/g, '%25')
+    .replace(/\r/g, '%0D')
+    .replace(/\n/g, '%0A');
+}
+
 try {
   main();
 } catch (error) {
   console.error(`[错误] ${error.message}`);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log(`::error title=Cursor compatibility gate::${escapeAnnotation(error.message)}`);
+  }
   process.exitCode = 1;
 }
