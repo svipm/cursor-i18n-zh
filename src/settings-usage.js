@@ -10,7 +10,9 @@
 const { tokenizer } = require('acorn');
 
 const INJECTION_MARKER = 'i18nAccountUsage:!0';
-const MATCHING = { '(': ')', '[': ']', '{': '}' };
+// `${` 是模板字符串插值的开括号, acorn 会把它作为独立 token 抛出,
+// 插值内部的花括号闭合也必须计入配对, 否则函数体扫描会提前错配.
+const MATCHING = { '(': ')', '[': ']', '{': '}', '${': '}' };
 const TOKEN_OPTS = { ecmaVersion: 'latest', sourceType: 'module', allowHashBang: true };
 
 // 旧 SolidJS 结构 (Cursor <= 3.15).
@@ -86,7 +88,7 @@ function scanFunctionBody(text, fnStart, target) {
       continue;
     }
     const pos = fnStart + token.start;
-    if (label === '(' || label === '[' || label === '{') {
+    if (label === '(' || label === '[' || label === '{' || label === '${') {
       depth++;
       stack.push({ label, pos });
       continue;
