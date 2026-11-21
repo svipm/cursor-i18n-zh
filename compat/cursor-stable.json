@@ -2,15 +2,15 @@
   "schema": 1,
   "channel": "stable",
   "platform": "win32-x64-user",
-  "version": "3.24.18",
-  "releaseCommit": "be4c9e5350d77747b42cd467cbd3370a753d464b",
-  "commit": "be4c9e5350d77747b42cd467cbd3370a753d4640",
-  "validatedAt": "2026-10-14T05:04:36.277Z",
+  "version": "3.31.15",
+  "releaseCommit": "3eb8c13390837371c7c2f2013dc57fdbc802c753",
+  "commit": "3eb8c13390837371c7c2f2013dc57fdbc802c750",
+  "validatedAt": "2026-11-21T01:08:35.545Z",
   "metrics": {
-    "codeReplacements": 12891,
+    "codeReplacements": 12469,
     "workbenchBundles": 4,
     "accountUsageBundles": 2,
-    "cursorNlsReplacements": 180
+    "cursorNlsReplacements": 177
   },
   "gates": {
     "minCodeReplacementRatio": 0.7,
