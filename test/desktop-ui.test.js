@@ -252,7 +252,9 @@ test('desktop UI manages Cursor and Claude Code MCP, Skills, prompts and market'
   assert.match(cargo, /windows-sys/);
   assert.match(market, /api\.github\.com\/repos\/\{slug\}\/commits/);
   assert.match(market, /raw\.githubusercontent\.com/);
-  assert.match(buildWorkflow, /runs-on: macos-14/);
+  // 只校验 macOS 任务仍在构建工作流中. 固定写入具体镜像标签 (如 macos-14)
+  // 会在 GitHub 下线该 Runner 后误报, 反而掩盖真正的工作流改动.
+  assert.match(buildWorkflow, /runs-on: macos-/);
   assert.match(buildWorkflow, /package-macos\.sh/);
   assert.match(desktopMain, /target_os = "macos"/);
 });
