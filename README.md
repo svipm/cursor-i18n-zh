@@ -210,7 +210,7 @@ Claude Desktop 适配流程:
 
 ### macOS
 
-macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
+macOS 构建由 GitHub Actions 的 `macos-15` Runner 生成:
 
 - `localization-workbench-v0.4.3-macos.dmg`: 推荐安装包.
 - `localization-workbench-v0.4.3-macos-app.zip`: 保留完整 `.app` 的便携压缩包.
@@ -222,7 +222,7 @@ macOS 构建由 GitHub Actions 的 `macos-14` Runner 生成:
 - 管理员启动时保留原用户 HOME, UID 和 GID. 用户级配置与备份写入后恢复原用户所有权, 避免产生 root 所有文件.
 - `.app` 内置 Cursor 引擎依赖及对应第三方许可证, Claude 翻译资源来源和 Apache-2.0 声明与 Windows 便携包保持一致.
 
-当前 Windows 主机无法运行 macOS 应用. 仓库通过目标平台条件编译和 `macos-14` 原生 CI 完成 Universal 构建, 双架构检查, Info.plist 校验, `.app` 签名校验, ZIP 完整性检查和 DMG 挂载结构验证. 配置 Apple 开发者证书与公证 Secrets 后会自动执行 Developer ID 签名, notarization, stapling 和 Gatekeeper 验证; 未配置时生成 ad-hoc 签名测试产物. 正式发布前仍应在真实 Mac 上执行一次 Cursor 与 Claude Desktop 安装、恢复和启动验收.
+当前 Windows 主机无法运行 macOS 应用. 仓库通过目标平台条件编译和 `macos-15` 原生 CI 完成 Universal 构建, 双架构检查, Info.plist 校验, `.app` 签名校验, ZIP 完整性检查和 DMG 挂载结构验证. 配置 Apple 开发者证书与公证 Secrets 后会自动执行 Developer ID 签名, notarization, stapling 和 Gatekeeper 验证; 未配置时生成 ad-hoc 签名测试产物. 正式发布前仍应在真实 Mac 上执行一次 Cursor 与 Claude Desktop 安装、恢复和启动验收.
 
 ## MCP, Skill 与提示词安全
 
